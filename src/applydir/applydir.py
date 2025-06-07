@@ -4,13 +4,13 @@ import argparse
 from pathlib import Path
 import difflib
 from typing import Dict, Tuple, List
-import yaml
 import logging
 import re
+from applydir.config import load_config
 
-def setup_logging(config: Dict, handler: logging.Handler = None) -> None:
+def setup_logging(config, handler: logging.Handler = None) -> None:
     """Configure logging based on config settings."""
-    log_level = getattr(logging, config.get("logging", {}).get("level", "INFO").upper(), logging.INFO)
+    log_level = getattr(logging, config.LOGGING.LEVEL.upper(), logging.INFO)
     logger = logging.getLogger()
     logger.setLevel(log_level)
     # Remove existing handlers to avoid duplicates
@@ -21,25 +21,6 @@ def setup_logging(config: Dict, handler: logging.Handler = None) -> None:
         handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
     logger.addHandler(handler)
-
-def load_config(config_path: str) -> Dict:
-    """Load configuration from YAML file."""
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f) or {}
-        # Validate config
-        if not isinstance(config.get("apply_changes", {}).get("auto_apply"), bool):
-            logging.warning("Invalid or missing 'auto_apply' in config; defaulting to False")
-            config.setdefault("apply_changes", {})["auto_apply"] = False
-        valid_shells = {"bash", "powershell", "cmd"}
-        shell_type = config.get("commands", {}).get("shell_type", "bash")
-        if shell_type not in valid_shells:
-            logging.warning(f"Invalid shell_type '{shell_type}'; defaulting to 'bash'")
-            config.setdefault("commands", {})["shell_type"] = "bash"
-        return config
-    except Exception as e:
-        logging.error(f"Failed to load config from {config_path}: {e}")
-        return {"apply_changes": {"auto_apply": False}, "commands": {"shell_type": "bash"}}
 
 def parse_prepped_dir(file_path: str) -> Tuple[Dict[str, str], List[str]]:
     """Parse a prepped_dir.txt file into a dictionary of file paths and contents, plus additional commands."""
@@ -141,10 +122,10 @@ def show_diff(original: str, modified: str, file_path: str) -> None:
     )
     print(''.join(diff))
 
-def apply_changes(updates: Dict[str, str], new_files: Dict[str, str], commands: List[str], base_dir: str, config: Dict, dry_run: bool = False) -> None:
+def apply_changes(updates: Dict[str, str], new_files: Dict[str, str], commands: List[str], base_dir: str, config, dry_run: bool = False) -> None:
     """Apply updates and new files to the codebase, and handle additional commands."""
-    auto_apply = config.get("apply_changes", {}).get("auto_apply", False)
-    shell_type = config.get("commands", {}).get("shell_type", "bash")
+    auto_apply = config.APPLY_CHANGES.AUTO_APPLY
+    shell_type = config.COMMANDS.SHELL_TYPE
 
     # Handle updates
     for file_path, content in updates.items():
@@ -239,12 +220,12 @@ def main():
     parser = argparse.ArgumentParser(description="Apply changes from a modified prepped_dir.txt to the codebase.")
     parser.add_argument("prepped_dir", help="Path to the modified prepped_dir.txt file")
     parser.add_argument("--base-dir", default=".", help="Base directory of the codebase")
-    parser.add_argument("--config", default="src/applydir/config.yaml", help="Path to configuration file")
+    parser.add_argument("--config", default=None, help="Path to configuration file")
     parser.add_argument("--dry-run", action="store_true", help="Show changes and commands without applying them")
     args = parser.parse_args()
 
     # Load configuration
-    config = load_config(args.config)
+    config = load_config("applydir", args.config)
     setup_logging(config)
 
     # Validate base directory

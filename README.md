@@ -12,7 +12,7 @@ pip install applydir
 
 1. Generate a `prepped_dir.txt` file using `prepdir`:
    ```bash
-   prepdir > prepped_dir.txt
+   prepdir .
    ```
 
 2. Modify `prepped_dir.txt` (or create a `modified_prepped_dir.txt`) with your AI assistant, including updated file contents and additional commands.
@@ -34,20 +34,26 @@ pip install applydir
 
 ## Configuration
 
-The `config.yaml` file (default: `src/applydir/config.yaml`) allows customization:
+The configuration file (default: `.applydir/config.yaml`, `~/.applydir/config.yaml`, or bundled `src/applydir/config.yaml`) allows customization with the following uppercase keys:
 
 ```yaml
-apply_changes:
-  auto_apply: false  # Set to true to apply changes without user confirmation
-commands:
-  shell_type: "bash"  # Options: "bash", "powershell", "cmd"
-logging:
-  level: "INFO"  # Options: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+APPLY_CHANGES:
+  AUTO_APPLY: false  # Set to true to apply changes without user confirmation
+COMMANDS:
+  SHELL_TYPE: "bash"  # Options: "bash", "powershell", "cmd"
+LOGGING:
+  LEVEL: "INFO"  # Options: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
 ```
 
-- `auto_apply`: If `true`, applies file changes automatically without prompting.
-- `shell_type`: Specifies the shell for additional commands (commands are not executed automatically).
-- `logging.level`: Controls verbosity of logs.
+- `APPLY_CHANGES.AUTO_APPLY`: If `true`, applies file changes automatically without prompting.
+- `COMMANDS.SHELL_TYPE`: Specifies the shell for additional commands (commands are not executed automatically).
+- `LOGGING.LEVEL`: Controls verbosity of logs.
+
+Configuration files are loaded with the following precedence (first one wins):
+- Custom config specified via `--config`
+- Local config (`.applydir/config.yaml` in the current directory)
+- Global config (`~/.applydir/config.yaml` in the user's home directory)
+- Bundled config (`src/applydir/config.yaml` in the package)
 
 ## Features
 

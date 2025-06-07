@@ -42,6 +42,7 @@ dependencies = [
     "typing-extensions>=4.7.1; python_version < '3.11'",
     "importlib-resources>=5.0; python_version < '3.9'",
     "pyyaml>=6.0",
+    "dynaconf>=3.2.6",
     "prepdir>=0.9.0",
 ]
 

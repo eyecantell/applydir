@@ -2,10 +2,11 @@ import pytest
 import os
 from pathlib import Path
 from unittest.mock import mock_open, patch
-from applydir.applydir import parse_prepped_dir, compare_files, show_diff, apply_changes, load_config, setup_logging
-import yaml
+from applydir.applydir import parse_prepped_dir, compare_files, show_diff, apply_changes, setup_logging
+from applydir.config import load_config
 import logging
 from io import StringIO
+from dynaconf import Dynaconf
 
 @pytest.fixture
 def sample_prepped_dir_content():
@@ -24,11 +25,12 @@ git commit -m "Apply changes"
 
 @pytest.fixture
 def sample_config_content():
-    return {
-        "apply_changes": {"auto_apply": False},
-        "commands": {"shell_type": "bash"},
-        "logging": {"level": "INFO"}
-    }
+    return Dynaconf(
+        settings_files=[],
+        APPLY_CHANGES={"AUTO_APPLY": False},
+        COMMANDS={"SHELL_TYPE": "bash"},
+        LOGGING={"LEVEL": "INFO"}
+    )
 
 @pytest.fixture
 def capture_log(sample_config_content):
@@ -164,8 +166,12 @@ def test_apply_changes_auto_apply(tmp_path, sample_config_content, capsys, captu
     new_files = {"new_file.py": 'print("New content")'}
     commands = ['git commit -m "Apply changes"']
     
-    config = sample_config_content.copy()
-    config["apply_changes"]["auto_apply"] = True
+    config = Dynaconf(
+        settings_files=[],
+        APPLY_CHANGES={"AUTO_APPLY": True},
+        COMMANDS={"SHELL_TYPE": "bash"},
+        LOGGING={"LEVEL": "INFO"}
+    )
     
     apply_changes(updates, new_files, commands, str(base_dir), config, dry_run=False)
     
@@ -208,41 +214,67 @@ def test_apply_changes_dry_run(tmp_path, sample_config_content, capsys, capture_
     assert "Dry run: Would create new_file.py" in log_output
     assert "Dry run: Commands not executed" in log_output
 
-def test_load_config(sample_config_content):
+def test_load_config(tmp_path):
     """Test loading and validating configuration."""
-    config_yaml = yaml.dump(sample_config_content)
-    with patch("builtins.open", mock_open(read_data=config_yaml)):
-        config = load_config("dummy_config.yaml")
+    config_content = """
+APPLY_CHANGES:
+  AUTO_APPLY: false
+COMMANDS:
+  SHELL_TYPE: "bash"
+LOGGING:
+  LEVEL: "INFO"
+"""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(config_content)
     
-    assert config["apply_changes"]["auto_apply"] is False
-    assert config["commands"]["shell_type"] == "bash"
-    assert config["logging"]["level"] == "INFO"
+    config = load_config("applydir", str(config_path))
+    
+    assert config.APPLY_CHANGES.AUTO_APPLY is False
+    assert config.COMMANDS.SHELL_TYPE == "bash"
+    assert config.LOGGING.LEVEL == "INFO"
 
-def test_load_config_invalid_shell(sample_config_content):
+def test_load_config_invalid_shell(tmp_path):
     """Test handling invalid shell_type in config."""
-    invalid_config = sample_config_content.copy()
-    invalid_config["commands"]["shell_type"] = "invalid"
-    config_yaml = yaml.dump(invalid_config)
-    with patch("builtins.open", mock_open(read_data=config_yaml)):
-        config = load_config("dummy_config.yaml")
+    config_content = """
+APPLY_CHANGES:
+  AUTO_APPLY: false
+COMMANDS:
+  SHELL_TYPE: "invalid"
+LOGGING:
+  LEVEL: "INFO"
+"""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(config_content)
     
-    assert config["commands"]["shell_type"] == "bash"  # Defaults to bash
+    config = load_config("applydir", str(config_path))
+    
+    assert config.COMMANDS.SHELL_TYPE == "bash"  # Defaults to bash
 
-def test_load_config_missing_file():
-    """Test handling missing config file."""
-    logger = logging.getLogger()
-    original_level = logger.level
-    original_handlers = logger.handlers[:]
+def test_load_config_precedence(tmp_path):
+    """Test configuration file precedence."""
+    custom_config = tmp_path / "custom_config.yaml"
+    custom_config.write_text("""
+APPLY_CHANGES:
+  AUTO_APPLY: true
+COMMANDS:
+  SHELL_TYPE: "powershell"
+LOGGING:
+  LEVEL: "DEBUG"
+""")
     
-    with patch("builtins.open", side_effect=FileNotFoundError):
-        config = load_config("dummy_config.yaml")
+    local_config = tmp_path / ".applydir" / "config.yaml"
+    local_config.parent.mkdir()
+    local_config.write_text("""
+APPLY_CHANGES:
+  AUTO_APPLY: false
+COMMANDS:
+  SHELL_TYPE: "cmd"
+LOGGING:
+  LEVEL: "WARNING"
+""")
     
-    assert config["apply_changes"]["auto_apply"] is False
-    assert config["commands"]["shell_type"] == "bash"
+    config = load_config("applydir", str(custom_config))
     
-    # Restore original logging configuration
-    logger.setLevel(original_level)
-    for h in logger.handlers[:]:
-        logger.removeHandler(h)
-    for h in original_handlers:
-        logger.addHandler(h)
+    assert config.APPLY_CHANGES.AUTO_APPLY is True
+    assert config.COMMANDS.SHELL_TYPE == "powershell"
+    assert config.LOGGING.LEVEL == "DEBUG"
