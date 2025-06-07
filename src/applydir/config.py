@@ -1,6 +1,7 @@
-import sys
 import logging
+import sys
 from pathlib import Path
+
 from dynaconf import Dynaconf
 
 if sys.version_info < (3, 9):
@@ -9,6 +10,7 @@ else:
     from importlib import resources
 
 logger = logging.getLogger(__name__)
+
 
 def load_config(tool_name: str, config_path: str = None) -> Dynaconf:
     settings_files = []
@@ -31,14 +33,14 @@ def load_config(tool_name: str, config_path: str = None) -> Dynaconf:
         root_path=Path.cwd(),
         lowercase_read=True,
     )
-    
+
     # Validate shell_type
     valid_shells = {"bash", "powershell", "cmd"}
     shell_type = config.get("COMMANDS", {}).get("SHELL_TYPE", "bash")
     if shell_type not in valid_shells:
         logger.warning(f"Invalid shell_type '{shell_type}' in config; defaulting to 'bash'")
         config.COMMANDS.SHELL_TYPE = "bash"
-    
+
     # Validate auto_apply
     if not isinstance(config.get("APPLY_CHANGES", {}).get("AUTO_APPLY"), bool):
         logger.warning("Invalid or missing 'AUTO_APPLY' in config; defaulting to False")

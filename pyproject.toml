@@ -1,6 +1,6 @@
 [project]
 name = "applydir"
-version = "0.1.1"
+version = "0.2.0"
 description = "Utility to apply changes to files in a directory based on AI-generated recommendations from prepdir."
 readme = "README.md"
 authors = [
@@ -74,11 +74,20 @@ includes = ["src/applydir", "src/applydir/config.yaml"]
 test = [
     "pytest>=7.4.4",
     "pytest-cov>=6.1.0",
+    "coverage>=7.2.7",
+]
+dev = [
+    "build>=1.2.2",
+    "twine>=5.1.1",
+    "ruff>=0.7.0",
+    "GitPython>=3.1.43",
 ]
 
 [tool.ruff]
 line-length = 120
 target-version = "py38"
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
@@ -86,7 +95,6 @@ select = [
     "I",  # isort
     "B",  # flake8-bugbear
     "C4", # flake8-comprehensions
-    "T20", # flake8-print
 ]
 ignore = [
     "E501", # Line length handled by ruff formatter
