@@ -1,0 +1,7 @@
+# Configuration for applydir
+apply_changes:
+  auto_apply: false  # Set to true to apply changes without user confirmation
+commands:
+  shell_type: "bash"  # Options: "bash", "powershell", "cmd"
+logging:
+  level: "INFO"  # Options: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
