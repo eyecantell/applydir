@@ -6,6 +6,7 @@ import difflib
 from typing import Dict, Tuple, List
 import yaml
 import logging
+import re
 
 def setup_logging(config: Dict, handler: logging.Handler = None) -> None:
     """Configure logging based on config settings."""
@@ -49,34 +50,57 @@ def parse_prepped_dir(file_path: str) -> Tuple[Dict[str, str], List[str]]:
     in_content = False
     in_commands = False
 
+    # Regular expression for delimiter (minimum of one or more equals signs) followed by marker text
+    file_delim_str = r"\s*=*\-*=+\s*"
+    begin_file_pattern = re.compile(fr'^{file_delim_str}Begin File:\s*[\'"](.+?)[\'"]{file_delim_str}')
+    end_file_pattern = re.compile(fr'^{file_delim_str}End File:\s*[\'"](.+?)[\'"]{file_delim_str}')
+    begin_commands_pattern = re.compile(fr'^{file_delim_str}Begin Additional Commands{file_delim_str}')
+    end_commands_pattern = re.compile(fr'^{file_delim_str}End Additional Commands{file_delim_str}')
+
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.rstrip('\n')
-                if line.startswith('=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= Begin File: '):
-                    if current_file and current_content:
+                # Match Begin File marker
+                begin_file_match = begin_file_pattern.match(line)
+                if begin_file_match:
+                    # Save previous file's content if any
+                    if current_file and current_content and in_content:
                         files[current_file] = '\n'.join(current_content).strip()
-                        current_content = []
-                    current_file = line.split("'", 2)[1]
+                    # Start new file
+                    current_file = begin_file_match.group(1)
+                    current_content = []
                     in_content = True
                     in_commands = False
                     continue
-                if line.startswith('=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= End File: '):
-                    in_content = False
-                    if current_file and current_content:
+                # Match End File marker
+                end_file_match = end_file_pattern.match(line)
+                if end_file_match:
+                    if current_file and current_content and in_content:
                         files[current_file] = '\n'.join(current_content).strip()
-                        current_content = []
+                    current_file = None
+                    current_content = []
+                    in_content = False
                     continue
-                if line.startswith('=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= Begin Additional Commands =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-='):
+                # Match Begin Additional Commands marker
+                if begin_commands_pattern.match(line):
+                    if current_file and current_content and in_content:
+                        files[current_file] = '\n'.join(current_content).strip()
+                    current_file = None
+                    current_content = []
                     in_content = False
                     in_commands = True
                     continue
-                if line.startswith('=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= End Additional Commands =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-='):
+                # Match End Additional Commands marker
+                if end_commands_pattern.match(line):
                     in_commands = False
                     continue
+                # Skip header lines
                 if line.startswith('File listing generated') or line.startswith('Base directory is'):
                     continue
-                if in_content:
+                # Collect content or commands
+                if in_content and not (begin_file_pattern.match(line) or end_file_pattern.match(line) or 
+                                      begin_commands_pattern.match(line) or end_commands_pattern.match(line)):
                     current_content.append(line)
                 elif in_commands:
                     commands.append(line.strip())
@@ -84,7 +108,8 @@ def parse_prepped_dir(file_path: str) -> Tuple[Dict[str, str], List[str]]:
         logging.error(f"Failed to parse {file_path}: {e}")
         raise
 
-    if current_file and current_content:
+    # Handle the last file
+    if current_file and current_content and in_content:
         files[current_file] = '\n'.join(current_content).strip()
 
     return files, commands

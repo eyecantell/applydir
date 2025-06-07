@@ -11,15 +11,15 @@ from io import StringIO
 def sample_prepped_dir_content():
     return """File listing generated 2025-06-07 03:56:22.143067 by prepdir
 Base directory is '/mounted/dev/applydir'
-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= Begin File: 'test_file.py' =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+=-= Begin File: 'test_file.py' =-=
 print("Hello, World!")
-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= End File: 'test_file.py' =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= Begin File: 'new_file.py' =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+=-= End File: 'test_file.py' =-=
+===---=== Begin File: 'new_file.py' =
 print("New content")
-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= End File: 'new_file.py' =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= Begin Additional Commands =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+====----==== End File: 'new_file.py' ====
+====----==== Begin Additional Commands =
 git commit -m "Apply changes"
-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= End Additional Commands =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+=-= End Additional Commands ===--
 """
 
 @pytest.fixture
@@ -44,8 +44,30 @@ def capture_log(sample_config_content):
     logger.setLevel(logging.NOTSET)
 
 def test_parse_prepped_dir(sample_prepped_dir_content):
-    """Test parsing of prepped_dir.txt into files and commands."""
+    """Test parsing of prepped_dir.txt into files and commands with flexible delimiters."""
     with patch("builtins.open", mock_open(read_data=sample_prepped_dir_content)):
+        files, commands = parse_prepped_dir("dummy_path.txt")
+    
+    assert len(files) == 2
+    assert files["test_file.py"] == 'print("Hello, World!")'
+    assert files["new_file.py"] == 'print("New content")'
+    assert commands == ['git commit -m "Apply changes"']
+
+def test_parse_prepped_dir_varied_delimiters():
+    """Test parsing with different delimiter styles."""
+    varied_content = """File listing generated 2025-06-07 by prepdir
+Base directory is '/mounted/dev/applydir'
+=-= Begin File: 'test_file.py' =
+print("Hello, World!")
+===---=== End File: 'test_file.py' ===---===
+====----==== Begin File: 'new_file.py' ====
+print("New content")
+=-= End File: 'new_file.py' ==
+=-= Begin Additional Commands =-=
+git commit -m "Apply changes"
+===---=== End Additional Commands =-=-=
+"""
+    with patch("builtins.open", mock_open(read_data=varied_content)):
         files, commands = parse_prepped_dir("dummy_path.txt")
     
     assert len(files) == 2
