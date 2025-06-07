@@ -7,16 +7,19 @@ from typing import Dict, Tuple, List
 import yaml
 import logging
 
-def setup_logging(config: Dict) -> None:
+def setup_logging(config: Dict, handler: logging.Handler = None) -> None:
     """Configure logging based on config settings."""
     log_level = getattr(logging, config.get("logging", {}).get("level", "INFO").upper(), logging.INFO)
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
+    logger = logging.getLogger()
+    logger.setLevel(log_level)
+    # Remove existing handlers to avoid duplicates
+    for h in logger.handlers[:]:
+        logger.removeHandler(h)
+    # Add provided handler or default to StreamHandler
+    if handler is None:
+        handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(handler)
 
 def load_config(config_path: str) -> Dict:
     """Load configuration from YAML file."""
@@ -108,7 +111,7 @@ def show_diff(original: str, modified: str, file_path: str) -> None:
         fromfile=f'Original: {file_path}',
         tofile=f'Modified: {file_path}',
     )
-    logging.info(''.join(diff))
+    print(''.join(diff))
 
 def apply_changes(updates: Dict[str, str], new_files: Dict[str, str], commands: List[str], base_dir: str, config: Dict, dry_run: bool = False) -> None:
     """Apply updates and new files to the codebase, and handle additional commands."""
@@ -123,21 +126,26 @@ def apply_changes(updates: Dict[str, str], new_files: Dict[str, str], commands: 
                 with open(full_path, 'r', encoding='utf-8') as f:
                     original_content = f.read()
                 if original_content != content:
-                    logging.info(f"Proposed changes for {file_path}:")
+                    print(f"\nProposed changes for {file_path}:")
                     show_diff(original_content, content, file_path)
+                    logging.info(f"Proposed changes for {file_path}")
                     if dry_run:
+                        print(f"Dry run: Would update {file_path}")
                         logging.info(f"Dry run: Would update {file_path}")
                     elif auto_apply:
                         with open(full_path, 'w', encoding='utf-8') as f:
                             f.write(content)
+                        print(f"Automatically updated {file_path}")
                         logging.info(f"Automatically updated {file_path}")
                     else:
                         confirm = input(f"Apply changes to {file_path}? (y/n): ").lower()
                         if confirm == 'y':
                             with open(full_path, 'w', encoding='utf-8') as f:
                                 f.write(content)
+                            print(f"Updated {file_path}")
                             logging.info(f"Updated {file_path}")
                         else:
+                            print(f"Skipped {file_path}")
                             logging.info(f"Skipped {file_path}")
             except Exception as e:
                 logging.error(f"Failed to process {file_path}: {e}")
@@ -148,15 +156,18 @@ def apply_changes(updates: Dict[str, str], new_files: Dict[str, str], commands: 
     # Handle new files
     for file_path, content in new_files.items():
         full_path = os.path.join(base_dir, file_path)
+        print(f"\nNew file proposed: {file_path}")
+        print(f"Content (first 100 chars):\n{content[:100]}..." if len(content) > 100 else content)
         logging.info(f"New file proposed: {file_path}")
-        logging.info(f"Content (first 100 chars):\n{content[:100]}..." if len(content) > 100 else content)
         if dry_run:
+            print(f"Dry run: Would create {file_path}")
             logging.info(f"Dry run: Would create {file_path}")
         elif auto_apply:
             try:
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
                 with open(full_path, 'w', encoding='utf-8') as f:
                     f.write(content)
+                print(f"Automatically created {file_path}")
                 logging.info(f"Automatically created {file_path}")
             except Exception as e:
                 logging.error(f"Failed to create {file_path}: {e}")
@@ -167,25 +178,34 @@ def apply_changes(updates: Dict[str, str], new_files: Dict[str, str], commands: 
                     os.makedirs(os.path.dirname(full_path), exist_ok=True)
                     with open(full_path, 'w', encoding='utf-8') as f:
                         f.write(content)
+                    print(f"Created {file_path}")
                     logging.info(f"Created {file_path}")
                 except Exception as e:
                     logging.error(f"Failed to create {file_path}: {e}")
             else:
+                print(f"Skipped {file_path}")
                 logging.info(f"Skipped {file_path}")
 
     # Handle additional commands
     if commands:
-        logging.info(f"Proposed additional commands ({shell_type}):")
+        print(f"\nProposed additional commands ({shell_type}):")
         for cmd in commands:
-            logging.info(f"  {cmd}")
+            print(f"  {cmd}")
+        logging.info(f"Proposed additional commands ({shell_type}): {', '.join(commands)}")
         if dry_run:
+            print("Dry run: Commands not executed")
             logging.info("Dry run: Commands not executed")
         elif auto_apply:
-            logging.info("Commands not executed automatically in auto_apply mode. Please run them manually.")
+            print("Commands not executed automatically in auto_apply mode. Please run them manually.")
+            logging.info("Commands not executed automatically in auto_apply mode")
         else:
             confirm = input(f"Review commands above (intended for {shell_type}). Run them manually or press Enter to skip: ")
             if confirm:
-                logging.info("Commands not executed automatically. Please run them manually.")
+                print("Commands not executed automatically. Please run them manually.")
+                logging.info("Commands not executed automatically")
+            else:
+                print("Skipped command execution")
+                logging.info("Skipped command execution")
 
 def main():
     parser = argparse.ArgumentParser(description="Apply changes from a modified prepped_dir.txt to the codebase.")

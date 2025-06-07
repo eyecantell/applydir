@@ -1,6 +1,6 @@
 [project]
 name = "applydir"
-version = "0.1.0"
+version = "0.1.1"
 description = "Utility to apply changes to files in a directory based on AI-generated recommendations from prepdir."
 readme = "README.md"
 authors = [
