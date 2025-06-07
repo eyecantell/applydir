@@ -76,7 +76,10 @@ def parse_prepped_dir(file_path: str) -> Tuple[Dict[str, str], List[str]]:
                 # Match End File marker
                 end_file_match = end_file_pattern.match(line)
                 if end_file_match:
+                    end_file_name = end_file_match.group(1)
                     if current_file and current_content and in_content:
+                        if end_file_name != current_file:
+                            raise ValueError(f"Mismatched End File marker: expected '{current_file}', got '{end_file_name}'. Please fix prepped_dir.txt and regenerate with Grok 3.")
                         files[current_file] = '\n'.join(current_content).strip()
                     current_file = None
                     current_content = []
@@ -230,7 +233,7 @@ def apply_changes(updates: Dict[str, str], new_files: Dict[str, str], commands: 
                 logging.info("Commands not executed automatically")
             else:
                 print("Skipped command execution")
-                logging.info("Skipped command execution")
+                logging.info(f"Skipped command execution")
 
 def main():
     parser = argparse.ArgumentParser(description="Apply changes from a modified prepped_dir.txt to the codebase.")

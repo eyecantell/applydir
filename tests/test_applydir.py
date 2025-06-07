@@ -75,6 +75,18 @@ git commit -m "Apply changes"
     assert files["new_file.py"] == 'print("New content")'
     assert commands == ['git commit -m "Apply changes"']
 
+def test_parse_prepped_dir_mismatched_end_file():
+    """Test parsing with mismatched End File marker filename raises ValueError."""
+    mismatched_content = """File listing generated 2025-06-07 by prepdir
+Base directory is '/mounted/dev/applydir'
+=-= Begin File: 'test_file.py' =-=
+print("Hello, World!")
+=-= End File: 'wrong_file.py' =-=
+"""
+    with patch("builtins.open", mock_open(read_data=mismatched_content)):
+        with pytest.raises(ValueError, match=r"Mismatched End File marker: expected 'test_file.py', got 'wrong_file.py'"):
+            parse_prepped_dir("dummy_path.txt")
+
 def test_parse_prepped_dir_empty_file():
     """Test parsing an empty prepped_dir.txt."""
     with patch("builtins.open", mock_open(read_data="")):
