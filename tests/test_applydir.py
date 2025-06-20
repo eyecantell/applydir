@@ -1,13 +1,12 @@
 import logging
 from io import StringIO
 from unittest.mock import mock_open, patch
-
 import pytest
 from dynaconf import Dynaconf
-
-from applydir.applydir import apply_changes, compare_files, parse_prepped_dir, setup_logging, show_diff
+from pathlib import Path
+from applydir.applydir import apply_changes, parse_prepped_dir, setup_logging, execute_commands
+from applydir.file_for_applydir import FileForApplyDir
 from applydir.config import load_config
-
 
 @pytest.fixture
 def sample_prepped_dir_content():
@@ -24,7 +23,6 @@ git commit -m "Apply changes"
 =-= End Additional Commands ===--
 """
 
-
 @pytest.fixture
 def sample_config_content():
     return Dynaconf(
@@ -33,7 +31,6 @@ def sample_config_content():
         COMMANDS={"SHELL_TYPE": "bash"},
         LOGGING={"LEVEL": "INFO"},
     )
-
 
 @pytest.fixture
 def capture_log(sample_config_content):
@@ -48,17 +45,17 @@ def capture_log(sample_config_content):
         logger.removeHandler(h)
     logger.setLevel(logging.NOTSET)
 
-
 def test_parse_prepped_dir(sample_prepped_dir_content):
     """Test parsing of prepped_dir.txt into files and commands with flexible delimiters."""
     with patch("builtins.open", mock_open(read_data=sample_prepped_dir_content)):
-        files, commands = parse_prepped_dir("dummy_path.txt")
+        files, commands = parse_prepped_dir("dummy_path.txt", Path("/mounted/dev/applydir"), {})
 
     assert len(files) == 2
-    assert files["test_file.py"] == 'print("Hello, World!")'
-    assert files["new_file.py"] == 'print("New content")'
+    assert files[0].relative_path == "test_file.py"
+    assert files[0].modified_content == 'print("Hello, World!")'
+    assert files[1].relative_path == "new_file.py"
+    assert files[1].modified_content == 'print("New content")'
     assert commands == ['git commit -m "Apply changes"']
-
 
 def test_parse_prepped_dir_varied_delimiters():
     """Test parsing with different delimiter styles."""
@@ -75,13 +72,14 @@ git commit -m "Apply changes"
 ===---=== End Additional Commands =-=-=
 """
     with patch("builtins.open", mock_open(read_data=varied_content)):
-        files, commands = parse_prepped_dir("dummy_path.txt")
+        files, commands = parse_prepped_dir("dummy_path.txt", Path("/mounted/dev/applydir"), {})
 
     assert len(files) == 2
-    assert files["test_file.py"] == 'print("Hello, World!")'
-    assert files["new_file.py"] == 'print("New content")'
+    assert files[0].relative_path == "test_file.py"
+    assert files[0].modified_content == 'print("Hello, World!")'
+    assert files[1].relative_path == "new_file.py"
+    assert files[1].modified_content == 'print("New content")'
     assert commands == ['git commit -m "Apply changes"']
-
 
 def test_parse_prepped_dir_mismatched_end_file():
     """Test parsing with mismatched End File marker filename raises ValueError."""
@@ -95,44 +93,44 @@ print("Hello, World!")
         with pytest.raises(
             ValueError, match=r"Mismatched End File marker: expected 'test_file.py', got 'wrong_file.py'"
         ):
-            parse_prepped_dir("dummy_path.txt")
-
+            parse_prepped_dir("dummy_path.txt", Path("/mounted/dev/applydir"), {})
 
 def test_parse_prepped_dir_empty_file():
     """Test parsing an empty prepped_dir.txt."""
     with patch("builtins.open", mock_open(read_data="")):
-        files, commands = parse_prepped_dir("dummy_path.txt")
+        files, commands = parse_prepped_dir("dummy_path.txt", Path("/mounted/dev/applydir"), {})
 
-    assert files == {}
+    assert files == []
     assert commands == []
-
 
 def test_compare_files():
     """Test comparing original and modified files."""
-    original = {"test_file.py": 'print("Hello, World!")', "unchanged.py": "print('same')"}
-    modified = {
-        "test_file.py": 'print("Updated World!")',
-        "unchanged.py": "print('same')",
-        "new_file.py": 'print("New content")',
-    }
-    updates, new_files = compare_files(original, modified)
+    base_dir = Path("/tmp")
+    files = [
+        FileForApplyDir("test_file.py", base_dir, 'print("Updated World!")', 'print("Hello, World!")'),
+        FileForApplyDir("unchanged.py", base_dir, "print('same')", "print('same')"),
+        FileForApplyDir("new_file.py", base_dir, 'print("New content")', None)
+    ]
+    updates = [f for f in files if not f.is_new and f.has_changes()]
+    new_files = [f for f in files if f.is_new]
 
-    assert updates == {"test_file.py": 'print("Updated World!")'}
-    assert new_files == {"new_file.py": 'print("New content")'}
-
+    assert len(updates) == 1
+    assert updates[0].relative_path == "test_file.py"
+    assert len(new_files) == 1
+    assert new_files[0].relative_path == "new_file.py"
 
 def test_show_diff(capsys):
     """Test displaying unified diff."""
-    original = 'print("Hello, World!")\n'
-    modified = 'print("Updated World!")\n'
-    show_diff(original, modified, "test_file.py")
+    base_dir = Path("/tmp")
+    file_obj = FileForApplyDir("test.py", base_dir, 'print("Updated World!")', 'print("Hello, World!")')
+    file_obj.compute_diff()
+    print("".join(file_obj.diff))
     captured = capsys.readouterr()
 
-    assert "Original: test_file.py" in captured.out
-    assert "Modified: test_file.py" in captured.out
+    assert "Original: test.py" in captured.out
+    assert "Modified: test.py" in captured.out
     assert '-print("Hello, World!")' in captured.out
     assert '+print("Updated World!")' in captured.out
-
 
 def test_apply_changes_interactive(tmp_path, sample_config_content, capsys, capture_log):
     """Test applying changes interactively with user input."""
@@ -141,12 +139,14 @@ def test_apply_changes_interactive(tmp_path, sample_config_content, capsys, capt
     original_file = base_dir / "test_file.py"
     original_file.write_text('print("Hello, World!")')
 
-    updates = {"test_file.py": 'print("Updated World!")'}
-    new_files = {"new_file.py": 'print("New content")'}
+    files = [
+        FileForApplyDir("test_file.py", base_dir, 'print("Updated World!")', 'print("Hello, World!")'),
+        FileForApplyDir("new_file.py", base_dir, 'print("New content")', None)
+    ]
     commands = ['git commit -m "Apply changes"']
 
     with patch("builtins.input", side_effect=["y", "y", ""]):
-        apply_changes(updates, new_files, commands, str(base_dir), sample_config_content, dry_run=False)
+        apply_changes(files, commands, sample_config_content, dry_run=False, selected_files=["-all"], execute_commands_flag=False)
 
     assert original_file.read_text() == 'print("Updated World!")'
     assert (base_dir / "new_file.py").read_text() == 'print("New content")'
@@ -164,7 +164,6 @@ def test_apply_changes_interactive(tmp_path, sample_config_content, capsys, capt
     assert "Created new_file.py" in log_output
     assert "Skipped command execution" in log_output
 
-
 def test_apply_changes_auto_apply(tmp_path, sample_config_content, capsys, capture_log):
     """Test applying changes automatically."""
     base_dir = tmp_path / "codebase"
@@ -172,8 +171,10 @@ def test_apply_changes_auto_apply(tmp_path, sample_config_content, capsys, captu
     original_file = base_dir / "test_file.py"
     original_file.write_text('print("Hello, World!")')
 
-    updates = {"test_file.py": 'print("Updated World!")'}
-    new_files = {"new_file.py": 'print("New content")'}
+    files = [
+        FileForApplyDir("test_file.py", base_dir, 'print("Updated World!")', 'print("Hello, World!")'),
+        FileForApplyDir("new_file.py", base_dir, 'print("New content")', None)
+    ]
     commands = ['git commit -m "Apply changes"']
 
     config = Dynaconf(
@@ -183,7 +184,7 @@ def test_apply_changes_auto_apply(tmp_path, sample_config_content, capsys, captu
         LOGGING={"LEVEL": "INFO"},
     )
 
-    apply_changes(updates, new_files, commands, str(base_dir), config, dry_run=False)
+    apply_changes(files, commands, config, dry_run=False, selected_files=["-all"], execute_commands_flag=False)
 
     assert original_file.read_text() == 'print("Updated World!")'
     assert (base_dir / "new_file.py").read_text() == 'print("New content")'
@@ -191,13 +192,13 @@ def test_apply_changes_auto_apply(tmp_path, sample_config_content, capsys, captu
     captured = capsys.readouterr()
     assert "Automatically updated test_file.py" in captured.out
     assert "Automatically created new_file.py" in captured.out
-    assert "Commands not executed automatically in auto_apply mode" in captured.out
+    assert "Proposed additional commands (bash)" in captured.out
+    assert "Skipped command execution" in captured.out
 
     log_output = capture_log.getvalue()
     assert "Automatically updated test_file.py" in log_output
     assert "Automatically created new_file.py" in log_output
-    assert "Commands not executed automatically in auto_apply mode" in log_output
-
+    assert "Skipped command execution" in log_output
 
 def test_apply_changes_dry_run(tmp_path, sample_config_content, capsys, capture_log):
     """Test dry-run mode."""
@@ -206,11 +207,13 @@ def test_apply_changes_dry_run(tmp_path, sample_config_content, capsys, capture_
     original_file = base_dir / "test_file.py"
     original_file.write_text('print("Hello, World!")')
 
-    updates = {"test_file.py": 'print("Updated World!")'}
-    new_files = {"new_file.py": 'print("New content")'}
+    files = [
+        FileForApplyDir("test_file.py", base_dir, 'print("Updated World!")', 'print("Hello, World!")'),
+        FileForApplyDir("new_file.py", base_dir, 'print("New content")', None)
+    ]
     commands = ['git commit -m "Apply changes"']
 
-    apply_changes(updates, new_files, commands, str(base_dir), sample_config_content, dry_run=True)
+    apply_changes(files, commands, sample_config_content, dry_run=True, selected_files=["-all"], execute_commands_flag=False)
 
     assert original_file.read_text() == 'print("Hello, World!")'  # Original unchanged
     assert not (base_dir / "new_file.py").exists()  # New file not created
@@ -224,7 +227,6 @@ def test_apply_changes_dry_run(tmp_path, sample_config_content, capsys, capture_
     assert "Dry run: Would update test_file.py" in log_output
     assert "Dry run: Would create new_file.py" in log_output
     assert "Dry run: Commands not executed" in log_output
-
 
 def test_load_config(tmp_path):
     """Test loading and validating configuration."""
@@ -245,7 +247,6 @@ LOGGING:
     assert config.COMMANDS.SHELL_TYPE == "bash"
     assert config.LOGGING.LEVEL == "INFO"
 
-
 def test_load_config_invalid_shell(tmp_path):
     """Test handling invalid shell_type in config."""
     config_content = """
@@ -262,7 +263,6 @@ LOGGING:
     config = load_config("applydir", str(config_path))
 
     assert config.COMMANDS.SHELL_TYPE == "bash"  # Defaults to bash
-
 
 def test_load_config_precedence(tmp_path):
     """Test configuration file precedence."""
@@ -292,3 +292,83 @@ LOGGING:
     assert config.APPLY_CHANGES.AUTO_APPLY is True
     assert config.COMMANDS.SHELL_TYPE == "powershell"
     assert config.LOGGING.LEVEL == "DEBUG"
+
+def test_file_for_applydir_restore_uuids(tmp_path, sample_config_content):
+    """Test UUID restoration in FileForApplyDir."""
+    base_dir = tmp_path / "codebase"
+    base_dir.mkdir()
+    uuid_mapping = {"PREPDIR_UUID_PLACEHOLDER_1": "123e4567-e89b-12d3-a456-426614174000"}
+    file_obj = FileForApplyDir(
+        relative_path="test.py",
+        base_dir=base_dir,
+        modified_content='print("UUID: PREPDIR_UUID_PLACEHOLDER_1")',
+        original_content='print("UUID: 123e4567-e89b-12d3-a456-426614174000")',
+        uuid_mapping=uuid_mapping
+    )
+    file_obj.restore_uuids()
+    assert file_obj.modified_content == 'print("UUID: 123e4567-e89b-12d3-a456-426614174000")'
+
+def test_file_for_applydir_apply_changes_auto(tmp_path, sample_config_content, capsys):
+    """Test applying changes automatically."""
+    base_dir = tmp_path / "codebase"
+    base_dir.mkdir()
+    original_file = base_dir / "test.py"
+    original_file.write_text('print("Original")')
+
+    file_obj = FileForApplyDir(
+        relative_path="test.py",
+        base_dir=base_dir,
+        modified_content='print("Updated")',
+        original_content='print("Original")'
+    )
+    file_obj.apply_changes(dry_run=False, auto_apply=True)
+    assert file_obj.is_updated
+    assert original_file.read_text() == 'print("Updated")'
+    captured = capsys.readouterr()
+    assert "Automatically updated test.py" in captured.out
+
+def test_parse_prepped_dir_with_uuids(sample_config_content, tmp_path):
+    """Test parsing prepped_dir.txt with UUID restoration."""
+    prepped_content = """File listing generated 2025-06-20 by prepdir
+Base directory is '/codebase'
+=-=-=-= Begin File: 'test.py' =-=-=-=
+print("UUID: PREPDIR_UUID_PLACEHOLDER_1")
+=-=-=-= End File: 'test.py' =-=-=-=
+=-=-=-= Begin Additional Commands =-=-=-=
+git commit -m "Update"
+=-=-=-= End Additional Commands =-=-=-=
+"""
+    prepped_file = tmp_path / "prepped_dir.txt"
+    prepped_file.write_text(prepped_content)
+    base_dir = tmp_path / "codebase"
+    base_dir.mkdir()
+    (base_dir / "test.py").write_text('print("UUID: 123e4567-e89b-12d3-a456-426614174000")')
+    uuid_mapping = {"PREPDIR_UUID_PLACEHOLDER_1": "123e4567-e89b-12d3-a456-426614174000"}
+
+    files, commands = parse_prepped_dir(str(prepped_file), base_dir, uuid_mapping)
+    assert len(files) == 1
+    assert files[0].modified_content == 'print("UUID: 123e4567-e89b-12d3-a456-426614174000")'
+    assert commands == ['git commit -m "Update"']
+
+def test_apply_changes_selective(tmp_path, sample_config_content):
+    """Test applying changes to selected files."""
+    base_dir = tmp_path / "codebase"
+    base_dir.mkdir()
+    (base_dir / "file1.py").write_text('print("Original1")')
+    (base_dir / "file2.py").write_text('print("Original2")')
+
+    files = [
+        FileForApplyDir("file1.py", base_dir, 'print("Updated1")', 'print("Original1")'),
+        FileForApplyDir("file2.py", base_dir, 'print("Updated2")', 'print("Original2")')
+    ]
+    with patch("builtins.input", side_effect=["y"]):
+        apply_changes(files, [], sample_config_content, dry_run=False, selected_files=["file1.py"])
+    assert (base_dir / "file1.py").read_text() == 'print("Updated1")'
+    assert (base_dir / "file2.py").read_text() == 'print("Original2")'
+
+def test_execute_commands_dry_run(sample_config_content, capsys):
+    """Test command execution in dry-run mode."""
+    commands = ['echo "Test"']
+    execute_commands(commands, "bash", dry_run=True)
+    captured = capsys.readouterr()
+    assert "Dry run: Would execute: echo \"Test\"" in captured.out
