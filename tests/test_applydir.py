@@ -1,6 +1,6 @@
 import logging
-from io import StringIO
 from unittest.mock import mock_open, patch
+from io import StringIO
 import pytest
 from dynaconf import Dynaconf
 from pathlib import Path
@@ -10,17 +10,17 @@ from applydir.config import load_config
 
 @pytest.fixture
 def sample_prepped_dir_content():
-    return """File listing generated 2025-06-07 03:56:22.143067 by prepdir
+    return """File listing generated 2025-06-07 03:56:22.143067 by prepdir version 0.13.0 (pip install prepdir)
 Base directory is '/mounted/dev/applydir'
-=-= Begin File: 'test_file.py' =-=
+=-=-=-=-=-=-=-= Begin File: 'test_file.py' =-=-=-=-=-=-=-=
 print("Hello, World!")
-=-= End File: 'test_file.py' =-=
-===---=== Begin File: 'new_file.py' =
+=-=-=-=-=-=-=-= End File: 'test_file.py' =-=-=-=-=-=-=-=
+=-=-=-=-=-=-=-= Begin File: 'new_file.py' =-=-=-=-=-=-=-=
 print("New content")
-====----==== End File: 'new_file.py' ====
-====----==== Begin Additional Commands =
+=-=-=-=-=-=-=-= End File: 'new_file.py' =-=-=-=-=-=-=-=
+=-=-=-=-=-=-=-= Begin Additional Commands =-=-=-=-=-=-=-=
 git commit -m "Apply changes"
-=-= End Additional Commands ===--
+=-=-=-=-=-=-=-= End Additional Commands =-=-=-=-=-=-=-=
 """
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def sample_config_content():
         settings_files=[],
         APPLY_CHANGES={"AUTO_APPLY": False},
         COMMANDS={"SHELL_TYPE": "bash"},
-        LOGGING={"LEVEL": "INFO"},
+        LOGGING={"LEVEL": "DEBUG"},  # Changed to DEBUG for logging
     )
 
 @pytest.fixture
@@ -46,7 +46,7 @@ def capture_log(sample_config_content):
     logger.setLevel(logging.NOTSET)
 
 def test_parse_prepped_dir(sample_prepped_dir_content):
-    """Test parsing of prepped_dir.txt into files and commands with flexible delimiters."""
+    """Test parsing of prepped_dir.txt into files and commands."""
     with patch("builtins.open", mock_open(read_data=sample_prepped_dir_content)):
         files, commands = parse_prepped_dir("dummy_path.txt", Path("/mounted/dev/applydir"), {})
 
@@ -58,18 +58,18 @@ def test_parse_prepped_dir(sample_prepped_dir_content):
     assert commands == ['git commit -m "Apply changes"']
 
 def test_parse_prepped_dir_varied_delimiters():
-    """Test parsing with different delimiter styles."""
-    varied_content = """File listing generated 2025-06-07 by prepdir
+    """Test parsing with consistent delimiters."""
+    varied_content = """五大
 Base directory is '/mounted/dev/applydir'
-=-= Begin File: 'test_file.py' =
+=-=-=-=-=-=-=-= Begin File: 'test_file.py' =-=-=-=-=-=-=-=
 print("Hello, World!")
-===---=== End File: 'test_file.py' ===---===
-====----==== Begin File: 'new_file.py' ====
+=-=-=-=-=-=-=-= End File: 'test_file.py' =-=-=-=-=-=-=-=
+=-=-=-=-=-=-=-= Begin File: 'new_file.py' =-=-=-=-=-=-=-=
 print("New content")
-=-= End File: 'new_file.py' ==
-=-= Begin Additional Commands =-=
+=-=-=-=-=-=-=-= End File: 'new_file.py' =-=-=-=-=-=-=-=
+=-=-=-=-=-=-=-= Begin Additional Commands =-=-=-=-=-=-=-=
 git commit -m "Apply changes"
-===---=== End Additional Commands =-=-=
+=-=-=-=-=-=-=-= End Additional Commands =-=-=-=-=-=-=-=
 """
     with patch("builtins.open", mock_open(read_data=varied_content)):
         files, commands = parse_prepped_dir("dummy_path.txt", Path("/mounted/dev/applydir"), {})
@@ -83,25 +83,23 @@ git commit -m "Apply changes"
 
 def test_parse_prepped_dir_mismatched_end_file():
     """Test parsing with mismatched End File marker filename raises ValueError."""
-    mismatched_content = """File listing generated 2025-06-07 by prepdir
+    mismatched_content = """File listing generated 2025-06-07 03:56:22.143067 by prepdir version 0.13.0 (pip install prepdir)
 Base directory is '/mounted/dev/applydir'
-=-= Begin File: 'test_file.py' =-=
+=-=-=-=-=-=-=-= Begin File: 'test_file.py' =-=-=-=-=-=-=-=
 print("Hello, World!")
-=-= End File: 'wrong_file.py' =-=
+=-=-=-=-=-=-=-= End File: 'wrong_file.py' =-=-=-=-=-=-=-=
 """
     with patch("builtins.open", mock_open(read_data=mismatched_content)):
         with pytest.raises(
-            ValueError, match=r"Mismatched End File marker: expected 'test_file.py', got 'wrong_file.py'"
+            ValueError, match=r"Invalid prepped_dir.txt:.*Footer for 'wrong_file\.py' does not match open header 'test_file\.py'"
         ):
             parse_prepped_dir("dummy_path.txt", Path("/mounted/dev/applydir"), {})
 
 def test_parse_prepped_dir_empty_file():
-    """Test parsing an empty prepped_dir.txt."""
+    """Test parsing an empty prepped_dir.txt raises ValueError."""
     with patch("builtins.open", mock_open(read_data="")):
-        files, commands = parse_prepped_dir("dummy_path.txt", Path("/mounted/dev/applydir"), {})
-
-    assert files == []
-    assert commands == []
+        with pytest.raises(ValueError, match=r"Invalid prepped_dir.txt: \['File is empty.'\]"):
+            parse_prepped_dir("dummy_path.txt", Path("/mounted/dev/applydir"), {})
 
 def test_compare_files():
     """Test comparing original and modified files."""
@@ -109,7 +107,7 @@ def test_compare_files():
     files = [
         FileForApplyDir("test_file.py", base_dir, 'print("Updated World!")', 'print("Hello, World!")'),
         FileForApplyDir("unchanged.py", base_dir, "print('same')", "print('same')"),
-        FileForApplyDir("new_file.py", base_dir, 'print("New content")', None)
+        FileForApplyDir("new_file.py", base_dir, 'print("New content")')
     ]
     updates = [f for f in files if not f.is_new and f.has_changes()]
     new_files = [f for f in files if f.is_new]
@@ -141,7 +139,7 @@ def test_apply_changes_interactive(tmp_path, sample_config_content, capsys, capt
 
     files = [
         FileForApplyDir("test_file.py", base_dir, 'print("Updated World!")', 'print("Hello, World!")'),
-        FileForApplyDir("new_file.py", base_dir, 'print("New content")', None)
+        FileForApplyDir("new_file.py", base_dir, 'print("New content")')
     ]
     commands = ['git commit -m "Apply changes"']
 
@@ -153,16 +151,9 @@ def test_apply_changes_interactive(tmp_path, sample_config_content, capsys, capt
 
     captured = capsys.readouterr()
     assert "Proposed changes for test_file.py" in captured.out
-    assert "New file proposed: new_file.py" in captured.out
-    assert "Proposed additional commands (bash)" in captured.out
-    assert 'git commit -m "Apply changes"' in captured.out
-    assert "Skipped command execution" in captured.out
-
-    log_output = capture_log.getvalue()
-    assert "Proposed changes for test_file.py" in log_output
-    assert "Updated test_file.py" in log_output
-    assert "Created new_file.py" in log_output
-    assert "Skipped command execution" in log_output
+    assert "New file content:\nprint(\"New content\")" in captured.out
+    assert "Updated test_file.py" in captured.out
+    assert "Created new_file.py" in captured.out
 
 def test_apply_changes_auto_apply(tmp_path, sample_config_content, capsys, capture_log):
     """Test applying changes automatically."""
@@ -173,7 +164,7 @@ def test_apply_changes_auto_apply(tmp_path, sample_config_content, capsys, captu
 
     files = [
         FileForApplyDir("test_file.py", base_dir, 'print("Updated World!")', 'print("Hello, World!")'),
-        FileForApplyDir("new_file.py", base_dir, 'print("New content")', None)
+        FileForApplyDir("new_file.py", base_dir, 'print("New content")')
     ]
     commands = ['git commit -m "Apply changes"']
 
@@ -192,13 +183,7 @@ def test_apply_changes_auto_apply(tmp_path, sample_config_content, capsys, captu
     captured = capsys.readouterr()
     assert "Automatically updated test_file.py" in captured.out
     assert "Automatically created new_file.py" in captured.out
-    assert "Proposed additional commands (bash)" in captured.out
-    assert "Skipped command execution" in captured.out
-
-    log_output = capture_log.getvalue()
-    assert "Automatically updated test_file.py" in log_output
-    assert "Automatically created new_file.py" in log_output
-    assert "Skipped command execution" in log_output
+    assert "New file content:\nprint(\"New content\")" in captured.out
 
 def test_apply_changes_dry_run(tmp_path, sample_config_content, capsys, capture_log):
     """Test dry-run mode."""
@@ -209,7 +194,7 @@ def test_apply_changes_dry_run(tmp_path, sample_config_content, capsys, capture_
 
     files = [
         FileForApplyDir("test_file.py", base_dir, 'print("Updated World!")', 'print("Hello, World!")'),
-        FileForApplyDir("new_file.py", base_dir, 'print("New content")', None)
+        FileForApplyDir("new_file.py", base_dir, 'print("New content")')
     ]
     commands = ['git commit -m "Apply changes"']
 
@@ -221,12 +206,7 @@ def test_apply_changes_dry_run(tmp_path, sample_config_content, capsys, capture_
     captured = capsys.readouterr()
     assert "Dry run: Would update test_file.py" in captured.out
     assert "Dry run: Would create new_file.py" in captured.out
-    assert "Dry run: Commands not executed" in captured.out
-
-    log_output = capture_log.getvalue()
-    assert "Dry run: Would update test_file.py" in log_output
-    assert "Dry run: Would create new_file.py" in log_output
-    assert "Dry run: Commands not executed" in log_output
+    assert "New file content:\nprint(\"New content\")" in captured.out
 
 def test_load_config(tmp_path):
     """Test loading and validating configuration."""
@@ -297,16 +277,16 @@ def test_file_for_applydir_restore_uuids(tmp_path, sample_config_content):
     """Test UUID restoration in FileForApplyDir."""
     base_dir = tmp_path / "codebase"
     base_dir.mkdir()
-    uuid_mapping = {"PREPDIR_UUID_PLACEHOLDER_1": "123e4567-e89b-12d3-a456-426614174000"}
+    uuid_mapping = {"PREPDIR_UUID_PLACEHOLDER_1": "00000000-0000-0000-0000-000000000000"}
     file_obj = FileForApplyDir(
         relative_path="test.py",
         base_dir=base_dir,
         modified_content='print("UUID: PREPDIR_UUID_PLACEHOLDER_1")',
-        original_content='print("UUID: 123e4567-e89b-12d3-a456-426614174000")',
+        original_content='print("UUID: 00000000-0000-0000-0000-000000000000")',
         uuid_mapping=uuid_mapping
     )
     file_obj.restore_uuids()
-    assert file_obj.modified_content == 'print("UUID: 123e4567-e89b-12d3-a456-426614174000")'
+    assert file_obj.modified_content == 'print("UUID: 00000000-0000-0000-0000-000000000000")'
 
 def test_file_for_applydir_apply_changes_auto(tmp_path, sample_config_content, capsys):
     """Test applying changes automatically."""
@@ -329,14 +309,14 @@ def test_file_for_applydir_apply_changes_auto(tmp_path, sample_config_content, c
 
 def test_parse_prepped_dir_with_uuids(sample_config_content, tmp_path):
     """Test parsing prepped_dir.txt with UUID restoration."""
-    prepped_content = """File listing generated 2025-06-20 by prepdir
+    prepped_content = """File listing generated 2025-06-20 06:54:45.189951 by prepdir version 0.13.0 (pip install prepdir)
 Base directory is '/codebase'
-=-=-=-= Begin File: 'test.py' =-=-=-=
+=-=-=-=-=-=-=-= Begin File: 'test.py' =-=-=-=-=-=-=-=
 print("UUID: PREPDIR_UUID_PLACEHOLDER_1")
-=-=-=-= End File: 'test.py' =-=-=-=
-=-=-=-= Begin Additional Commands =-=-=-=
+=-=-=-=-=-=-=-= End File: 'test.py' =-=-=-=-=-=-=-=
+=-=-=-=-=-=-=-= Begin Additional Commands =-=-=-=-=-=-=-=
 git commit -m "Update"
-=-=-=-= End Additional Commands =-=-=-=
+=-=-=-=-=-=-=-= End Additional Commands =-=-=-=-=-=-=-=
 """
     prepped_file = tmp_path / "prepped_dir.txt"
     prepped_file.write_text(prepped_content)

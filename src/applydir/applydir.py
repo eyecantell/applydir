@@ -31,8 +31,12 @@ def parse_prepped_dir(file_path: str, base_dir: Path, uuid_mapping: Dict[str, st
         logger.error(f"Invalid prepped_dir.txt: {validation_result['errors']}")
         raise ValueError(f"Invalid prepped_dir.txt: {validation_result['errors']}")
 
+    # Debug: Inspect validation_result
+    logger.debug(f"Validation result: {validation_result}")
+
     files = []
-    for rel_path, modified_content in validation_result["files"].items():
+    files_content = validation_result.get("files", {})
+    for rel_path, modified_content in files_content.items():
         absolute_path = base_dir / rel_path
         original_content = None
         if absolute_path.exists():
@@ -45,10 +49,10 @@ def parse_prepped_dir(file_path: str, base_dir: Path, uuid_mapping: Dict[str, st
                 logger.error(f"Failed to read {rel_path}: {e}")
                 continue
         file_obj = FileForApplyDir(rel_path, base_dir, modified_content, original_content, uuid_mapping)
-        file_obj.restore_uuids()  # Restore UUIDs immediately after initialization
+        file_obj.restore_uuids()
         files.append(file_obj)
 
-    # Commands are not directly parsed by validate_output_file; assume they follow files
+    # Parse commands manually
     commands = []
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -56,10 +60,10 @@ def parse_prepped_dir(file_path: str, base_dir: Path, uuid_mapping: Dict[str, st
         in_commands = False
         for line in lines:
             line = line.rstrip("\n")
-            if line.startswith("=-=-=-= Begin Additional Commands"):
+            if line.startswith("=-=-=-=-=-=-=-= Begin Additional Commands"):
                 in_commands = True
                 continue
-            if line.startswith("=-=-=-= End Additional Commands"):
+            if line.startswith("=-=-=-=-=-=-=-= End Additional Commands"):
                 in_commands = False
                 continue
             if in_commands and line.strip():
@@ -82,7 +86,7 @@ def execute_commands(commands: List[str], shell_type: str, dry_run: bool = False
             logger.info(f"Dry run: Would execute: {cmd}")
         else:
             try:
-                shell = shell_type == "powershell" and "powershell" or shell_type == "cmd" and "cmd.exe /c" or "bash -c"
+                shell = "powershell" if shell_type == "powershell" else "cmd.exe /c" if shell_type == "cmd" else "bash -c"
                 subprocess.run(f"{shell} {cmd}", shell=True, check=True, text=True)
                 print(f"Executed: {cmd}")
                 logger.info(f"Executed: {cmd}")
