@@ -30,7 +30,9 @@ WORKDIR /mounted/dev/applydir
 # Install Python packages
 RUN python -m ensurepip --default-pip && \
     pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir pdm
+    pip install --no-cache-dir \
+    pdm \
+    pydantic
 
 # Install dependencies using PDM in editable mode (default)
 #COPY pyproject.toml pdm.lock /mounted/dev/applydir/
