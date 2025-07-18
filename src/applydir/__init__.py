@@ -1,15 +1,15 @@
-from .applydir_error import ApplyDirError, ErrorType
-from .applydir_applicator import ApplyDirApplicator
-from .applydir_changes import ApplyDirChanges
-from .applydir_file_change import ApplyDirFileChange
-from .applydir_matcher import ApplyDirMatcher
+from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
+from .applydir_changes import ApplydirChanges
+from .applydir_file_change import ApplydirFileChange
+from .applydir_matcher import ApplydirMatcher
+from .applydir_applicator import ApplydirApplicator
 
 __all__ = [
-    "__version__",
-    "ApplyDirError",
-    "ApplyDirApplicator",
-    "ApplyDirChanges",
-    "ApplyDirFileChange",
-    "ApplyDirMatcher",
-    "ErrorType"
+    "ApplydirError",
+    "ErrorType",
+    "ErrorSeverity",
+    "ApplydirChanges",
+    "ApplydirFileChange",
+    "ApplydirMatcher",
+    "ApplydirApplicator",
 ]

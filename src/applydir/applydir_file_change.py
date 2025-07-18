@@ -1,10 +1,11 @@
 from typing import List, Optional
 from pydantic import BaseModel, field_validator
 import re
+from pathlib import Path
 from prepdir import load_config
-from .applydir_error import ApplyDirError, ErrorType, ErrorSeverity
+from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 
-class ApplyDirFileChange(BaseModel):
+class ApplydirFileChange(BaseModel):
     """Represents a single change to a file, including path and line changes."""
     file: str
     original_lines: List[str]
@@ -12,17 +13,26 @@ class ApplyDirFileChange(BaseModel):
 
     @field_validator("file")
     @classmethod
-    def validate_file_path(cls, v: str) -> str:
-        if not v or v.startswith("/"):
-            raise ValueError("File path must be non-empty and relative")
+    def validate_file_path(cls, v: str, values: dict) -> str:
+        """Validates that the file path is resolvable within the project base_dir."""
+        if not v:
+            raise ValueError("File path must be non-empty")
+        # base_dir may be provided via Pydantic's values (e.g., from ApplydirApplicator)
+        base_dir = values.get("base_dir", Path.cwd())
+        try:
+            resolved_path = (base_dir / Path(v)).resolve()
+            if not str(resolved_path).startswith(str(base_dir.resolve())):
+                raise ValueError("File path is outside project directory")
+        except Exception as e:
+            raise ValueError(f"Invalid file path: {str(e)}")
         return v
 
-    def validate_change(self) -> List[ApplyDirError]:
+    def validate_change(self) -> List[ApplydirError]:
         """Validates syntax for the change."""
         errors = []
         if not self.original_lines:
             if not self.changed_lines:
-                errors.append(ApplyDirError(
+                errors.append(ApplydirError(
                     change=self,
                     error_type=ErrorType.EMPTY_CHANGED_LINES,
                     message="changed_lines cannot be empty for new files",
@@ -49,7 +59,7 @@ class ApplyDirFileChange(BaseModel):
                     else None
                 )
                 if severity:
-                    errors.append(ApplyDirError(
+                    errors.append(ApplydirError(
                         change=self,
                         error_type=ErrorType.SYNTAX,
                         message="Non-ASCII characters found in changed_lines",

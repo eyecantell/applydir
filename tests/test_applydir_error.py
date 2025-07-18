@@ -1,8 +1,8 @@
 import pytest
 import logging
 from prepdir import configure_logging
-from applydir.applydir_error import ApplyDirError, ErrorType, ErrorSeverity
-from applydir.applydir_file_change import ApplyDirFileChange
+from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
+from applydir.applydir_file_change import ApplydirFileChange
 from pydantic import ValidationError
 
 # Set up logging for tests
@@ -10,9 +10,9 @@ logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
 
 def test_error_creation_all_types():
-    """Test creating ApplyDirError for all ErrorType values with ERROR severity."""
+    """Test creating ApplydirError for all ErrorType values with ERROR severity."""
     for error_type in ErrorType:
-        error = ApplyDirError(
+        error = ApplydirError(
             change=None,
             error_type=error_type,
             severity=ErrorSeverity.ERROR,
@@ -27,8 +27,8 @@ def test_error_creation_all_types():
         assert error.change is None
 
 def test_error_creation_warning_severity():
-    """Test creating ApplyDirError with WARNING severity."""
-    error = ApplyDirError(
+    """Test creating ApplydirError with WARNING severity."""
+    error = ApplydirError(
         change=None,
         error_type=ErrorType.SYNTAX,
         severity=ErrorSeverity.WARNING,
@@ -42,13 +42,14 @@ def test_error_creation_warning_severity():
     assert error.details == {"line": "print('Hello 😊')", "line_number": 1}
 
 def test_error_with_file_change():
-    """Test ApplyDirError with an ApplyDirFileChange."""
-    change = ApplyDirFileChange(
+    """Test ApplydirError with an ApplydirFileChange."""
+    change = ApplydirFileChange(
         file="src/main.py",
         original_lines=["print('Hello')"],
-        changed_lines=["print('Hello 😊')"]
+        changed_lines=["print('Hello 😊')"],
+        base_dir=Path.cwd()
     )
-    error = ApplyDirError(
+    error = ApplydirError(
         change=change,
         error_type=ErrorType.SYNTAX,
         severity=ErrorSeverity.WARNING,
@@ -63,13 +64,14 @@ def test_error_with_file_change():
     assert error.details == {"line": "print('Hello 😊')", "line_number": 1}
 
 def test_error_serialization():
-    """Test JSON serialization of ApplyDirError."""
-    change = ApplyDirFileChange(
+    """Test JSON serialization of ApplydirError."""
+    change = ApplydirFileChange(
         file="src/main.py",
         original_lines=["print('Hello')"],
-        changed_lines=["print('Hello 😊')"]
+        changed_lines=["print('Hello 😊')"],
+        base_dir=Path.cwd()
     )
-    error = ApplyDirError(
+    error = ApplydirError(
         change=change,
         error_type=ErrorType.SYNTAX,
         severity=ErrorSeverity.WARNING,
@@ -91,14 +93,14 @@ def test_error_serialization():
 def test_error_descriptions():
     """Test ERROR_DESCRIPTIONS mapping for all ErrorType values."""
     for error_type in ErrorType:
-        assert error_type in ApplyDirError.ERROR_DESCRIPTIONS
-        assert isinstance(ApplyDirError.ERROR_DESCRIPTIONS[error_type], str)
-        logger.debug(f"Error description for {error_type}: {ApplyDirError.ERROR_DESCRIPTIONS[error_type]}")
+        assert error_type in ApplydirError.ERROR_DESCRIPTIONS
+        assert isinstance(ApplydirError.ERROR_DESCRIPTIONS[error_type], str)
+        logger.debug(f"Error description for {error_type}: {ApplydirError.ERROR_DESCRIPTIONS[error_type]}")
 
 def test_invalid_message():
     """Test that empty message raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
-        ApplyDirError(
+        ApplydirError(
             change=None,
             error_type=ErrorType.JSON_STRUCTURE,
             severity=ErrorSeverity.ERROR,
@@ -110,7 +112,7 @@ def test_invalid_message():
 
 def test_details_default():
     """Test that details defaults to empty dict if None."""
-    error = ApplyDirError(
+    error = ApplydirError(
         change=None,
         error_type=ErrorType.JSON_STRUCTURE,
         severity=ErrorSeverity.ERROR,
@@ -123,7 +125,7 @@ def test_details_default():
 def test_invalid_error_type():
     """Test that invalid error_type raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
-        ApplyDirError(
+        ApplydirError(
             change=None,
             error_type="invalid_type",  # Not an ErrorType value
             severity=ErrorSeverity.ERROR,
@@ -136,7 +138,7 @@ def test_invalid_error_type():
 def test_invalid_severity():
     """Test that invalid severity raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
-        ApplyDirError(
+        ApplydirError(
             change=None,
             error_type=ErrorType.JSON_STRUCTURE,
             severity="invalid_severity",  # Not an ErrorSeverity value

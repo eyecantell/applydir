@@ -16,18 +16,18 @@ class ErrorType(str, Enum):
     FILE_SYSTEM = "file_system"
     LINTING = "linting"
 
-class ApplyDirError(BaseModel):
+class ApplydirError(BaseModel):
     """Represents an error or warning in the applydir process, used for LLM-related validation and vibedir linting.
 
     Error type descriptions:
-    - json_structure: Bad JSON structure received (e.g., not an array).
-    - file_path: Invalid file path provided (e.g., absolute or empty).
+    - json_structure: Bad JSON structure received (e.g., not an array or extra fields).
+    - file_path: Invalid file path provided (e.g., outside project directory).
     - changes_empty: Empty changes array for file.
     - syntax: Invalid syntax in changed lines (e.g., non-ASCII characters, configurable via applydir_config.yaml).
     - empty_changed_lines: Empty changed lines for new file.
     - matching: No matching lines found in file.
     - file_system: File system operation failed (e.g., file exists, permissions).
-    - linting: Linting failed on file (handled by vibedir, e.g., pylint or markdownlint errors).
+    - linting: Linting failed on file (handled by vibedir).
     """
     ERROR_DESCRIPTIONS = {
         ErrorType.JSON_STRUCTURE: "Bad JSON structure received",
@@ -40,7 +40,7 @@ class ApplyDirError(BaseModel):
         ErrorType.LINTING: "Linting failed on file (handled by vibedir)",
     }
 
-    change: Optional["ApplyDirFileChange"] = None  # Forward reference
+    change: Optional["ApplydirFileChange"] = None  # Forward reference
     error_type: ErrorType
     severity: ErrorSeverity = ErrorSeverity.ERROR
     message: str
@@ -59,4 +59,4 @@ class ApplyDirError(BaseModel):
         return v or {}
 
 # Resolve forward references
-ApplyDirError.model_rebuild()
+ApplydirError.model_rebuild()

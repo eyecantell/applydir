@@ -3,6 +3,8 @@ COMMANDS:
   SHELL_TYPE: "bash"  # Options: "bash", "powershell", "cmd"
 LOGGING:
   LEVEL: "INFO"  # Options: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+  
+# Configuration file for applydir, defining validation and application settings.
 
 validation:
   non_ascii:
@@ -14,3 +16,6 @@ validation:
         action: ignore
       - extensions: [".json", ".yaml"]
         action: warning
+
+# Whether to write changes to temporary files (.applydir_temp) or actual files
+use_temp_files: true

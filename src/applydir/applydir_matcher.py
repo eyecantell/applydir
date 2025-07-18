@@ -1,34 +1,24 @@
-from typing import List, Dict, Union, Optional
-import difflib
-import re
-from .applydir_file_change import ApplyDirFileChange
-from .applydir_error import ApplyDirError, ErrorType
+from typing import List, Dict, Union
+from difflib import SequenceMatcher
+from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
+from .applydir_file_change import ApplydirFileChange
 
-class ApplyDirMatcher:
+class ApplydirMatcher:
     """Matches original_lines in file content using fuzzy matching."""
-    def __init__(self, similarity_threshold: float = 0.9, max_search_lines: Optional[int] = None):
+    def __init__(self, similarity_threshold: float = 0.95, max_search_lines: Optional[int] = None):
         self.similarity_threshold = similarity_threshold
         self.max_search_lines = max_search_lines
 
-    def match(self, file_content: List[str], change: ApplyDirFileChange) -> Union[Dict, List[ApplyDirError]]:
-        """Finds original_lines in file_content, returns range or errors."""
-        if not change.original_lines:
-            return {"start_line": 0, "end_line": -1, "details": {"similarity_score": 1.0, "regex": ""}}
-
-        # Generate regex for debugging
-        regex = r"\n".join(re.escape(line) for line in change.original_lines)
-        matcher = difflib.SequenceMatcher(None, change.original_lines, file_content)
-        if matcher.ratio() >= self.similarity_threshold:
-            # Simplified: Assume first matching block
-            match = matcher.get_matching_blocks()[0]
-            return {
-                "start_line": match.b,
-                "end_line": match.b + match.size - 1,
-                "details": {"similarity_score": matcher.ratio(), "regex": regex}
-            }
-        return [ApplyDirError(
+    def match(self, file_content: List[str], change: ApplydirFileChange) -> Union[Dict, List[ApplydirError]]:
+        """Matches original_lines in file_content."""
+        matcher = SequenceMatcher(None, file_content, change.original_lines)
+        match = matcher.find_longest_match(0, len(file_content), 0, len(change.original_lines))
+        if match.size >= len(change.original_lines) * self.similarity_threshold:
+            return {"start": match.a, "end": match.a + match.size}
+        return [ApplydirError(
             change=change,
             error_type=ErrorType.MATCHING,
-            message="No match found for original_lines",
-            details={"similarity_score": matcher.ratio(), "regex": regex}
+            severity=ErrorSeverity.ERROR,
+            message="No matching lines found",
+            details={"file": change.file}
         )]
