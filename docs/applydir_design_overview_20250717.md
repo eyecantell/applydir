@@ -1,4 +1,4 @@
-# applydir Design Document
+# applydir Design Overview
 
 ## Overview
 The `applydir` project automates code changes by applying LLM-generated modifications to a codebase, achieving >95% reliability. It works with `prepdir` (supplies full file contents) and `vibedir` (crafts prompts, communicates with the LLM, and orchestrates user interaction). Changes are specified in a JSON array of file objects, using a unified "replace" approach where `original_lines` are replaced with `changed_lines`. The design supports modifications, additions, deletions, and new file creation, with relative file paths matching `prepdir`’s output.
@@ -46,7 +46,7 @@ The LLM returns a JSON array of file objects, each with a relative path and a li
 - **Addition (README.md)**: Replace 10 lines with 11 lines, adding a feature description.
 
 ### Merging Logic
-- Changes within 10 lines (or as specified in `vibedir`’s `config.yaml`) are merged into a single change by the LLM, combining `original_lines` and `changed_lines`.
+- Changes within 10 lines (or as specified in `vibedir`’s `config.yaml`) of each other are merged into a single change by the LLM, combining `original_lines` and `changed_lines`.
 
 ## Workflow
 1. **User Input**:
@@ -60,13 +60,12 @@ The LLM returns a JSON array of file objects, each with a relative path and a li
 3. **applydir Validates**:
    - Validates the JSON:
      - Ensure it’s an array of file objects with valid relative `file` paths and non-empty `changes` arrays.
-     - For existing files (`original_lines` non██non-empty):
-       - Verify `changed_lines` has valid syntax (e.g., `pylint` for Python, `markdownlint` for Markdown).
+     - For existing files (`original_lines` is non-empty):
        - Confirm `original_lines` matches the file (exact or fuzzy match via `difflib`).
-       - For additions, check `changed_lines` starts with `original_lines`.
+       - For additions, check `changed_lines` includes `original_lines`.
      - For new files (`original_lines` empty):
-       - Verify the `file` path does not exist in the project directory.
-       - Check `changed_lines` has valid syntax and is non-empty.
+       - Verify the `file` path does not yet exist in the project directory.
+       - Check `changed_lines` is non-empty.
      - Return errors to `vibedir` (e.g., “Unmatched original_lines in src/main.py”, “File src/new_menu.py already exists”).
 4. **vibedir Handles Errors**:
    - Displays errors to the user or sends them to the LLM for correction (e.g., “Fix unmatched lines”).
@@ -83,7 +82,6 @@ The LLM returns a JSON array of file objects, each with a relative path and a li
      - If `original_lines` is non-empty, match it in the file and replace with `changed_lines`.
      - If `original_lines` is empty, create the file at the `file` path with `changed_lines`.
    - Logs changes and errors (e.g., unmatched `original_lines`, file creation failures).
-   - Supports rollback (e.g., Git integration).
 
 ## Component Roles
 - **prepdir**:
@@ -130,15 +128,14 @@ You are an expert code editor. For the provided files, apply the requested chang
     ]
   }
 ]
-- Treat all changes (modifications, additions, deletions, creations) as replacements.
+- All changes (modifications, additions, deletions, creations) will be treated as replacements (changed_lines for original_lines).
 - For existing files, include at least 10 lines in original_lines (or all lines for files shorter than 10) to ensure a unique match.
-- For additions, include 10 lines around the insertion point in original_lines, duplicate them in changed_lines, and append new lines.
-- For deletions, include the lines to delete in original_lines (with surrounding lines to reach 10) and exclude them from changed_lines.
+- For additions, include 10 lines for context around the insertion point in original_lines, duplicate the context lines in changed_lines, and include new lines.
+- For deletions, include the lines to delete in original_lines (with surrounding lines as needed to reach 10 lines) and exclude the lines to be deleted from changed_lines.
 - For new files, use empty original_lines ([]) and include the full content in changed_lines.
-- Merge changes within 10 lines into a single change for existing files.
+- Merge changes within 10 lines of each other into a single change for existing files.
 - Ensure changed_lines are syntactically correct for the language (e.g., Python for .py files, Markdown for .md files).
 - Use relative file paths (e.g., src/main.py) matching the provided file listing.
-- Matching relies on original_lines, not line numbers.
 
 Files:
 - src/main.py:
