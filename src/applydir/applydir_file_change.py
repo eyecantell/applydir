@@ -1,8 +1,8 @@
 from typing import List, Optional
-from pydantic import BaseModel, validator
-import pylint.lint
-import io
-from .applydir_error import ApplyDirError, ErrorType
+from pydantic import BaseModel, field_validator
+import re
+from prepdir import load_config
+from .applydir_error import ApplyDirError, ErrorType, ErrorSeverity
 
 class ApplyDirFileChange(BaseModel):
     """Represents a single change to a file, including path and line changes."""
@@ -10,14 +10,15 @@ class ApplyDirFileChange(BaseModel):
     original_lines: List[str]
     changed_lines: List[str]
 
-    @validator("file")
+    @field_validator("file")
+    @classmethod
     def validate_file_path(cls, v: str) -> str:
         if not v or v.startswith("/"):
             raise ValueError("File path must be non-empty and relative")
         return v
 
     def validate_change(self) -> List[ApplyDirError]:
-        """Validates syntax and additions for the change."""
+        """Validates syntax for the change."""
         errors = []
         if not self.original_lines:
             if not self.changed_lines:
@@ -25,38 +26,35 @@ class ApplyDirFileChange(BaseModel):
                     change=self,
                     error_type=ErrorType.EMPTY_CHANGED_LINES,
                     message="changed_lines cannot be empty for new files",
-                    details={}
+                    details={},
+                    severity=ErrorSeverity.ERROR
                 ))
             return errors
 
-        # Syntax check for Python files (simplified)
-        if self.file.endswith(".py"):
-            try:
-                pylint_output = io.StringIO()
-                pylint.lint.Run(["--disable=all", "--enable=syntax-error", "-"], reporter=pylint.lint.Reporter(pylint_output))
-                if pylint_output.getvalue():
+        # Load non-ASCII validation rules from applydir_config.yaml
+        config = load_config(namespace="applydir") or {"validation": {"non_ascii": {"default": "warning", "rules": []}}}
+        non_ascii_action = config["validation"]["non_ascii"]["default"]
+        for rule in config["validation"]["non_ascii"]["rules"]:
+            if any(self.file.endswith(ext) for ext in rule.get("extensions", [])):
+                non_ascii_action = rule["action"]
+                break
+
+        # Syntax check: Detect non-ASCII characters in changed_lines
+        non_ascii_pattern = re.compile(r'[^\x00-\x7F]')
+        for line in self.changed_lines:
+            if non_ascii_pattern.search(line):
+                severity = (
+                    ErrorSeverity.ERROR if non_ascii_action == "error"
+                    else ErrorSeverity.WARNING if non_ascii_action == "warning"
+                    else None
+                )
+                if severity:
                     errors.append(ApplyDirError(
                         change=self,
                         error_type=ErrorType.SYNTAX,
-                        message="Invalid Python syntax in changed_lines",
-                        details={"pylint_output": pylint_output.getvalue()}
+                        message="Non-ASCII characters found in changed_lines",
+                        details={"line": line, "line_number": self.changed_lines.index(line) + 1},
+                        severity=severity
                     ))
-            except Exception as e:
-                errors.append(ApplyDirError(
-                    change=self,
-                    error_type=ErrorType.SYNTAX,
-                    message="Failed to validate Python syntax",
-                    details={"exception": str(e)}
-                ))
-
-        # Addition check: changed_lines must start with original_lines
-        if len(self.changed_lines) >= len(self.original_lines):
-            if self.changed_lines[:len(self.original_lines)] != self.original_lines:
-                errors.append(ApplyDirError(
-                    change=self,
-                    error_type=ErrorType.ADDITION_MISMATCH,
-                    message="changed_lines does not start with original_lines",
-                    details={"expected_prefix": self.original_lines}
-                ))
 
         return errors

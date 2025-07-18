@@ -1,18 +1,18 @@
 [project]
 name = "applydir"
 version = "0.2.0"
-description = "Utility to apply changes to files in a directory based on AI-generated recommendations from prepdir."
+description = "Utility to apply changes to files based on AI-generated recommendations."
 readme = "README.md"
 authors = [
     {name = "eyecantell", email = "paul@pneuma.solutions"},
 ]
 license = {text = "MIT"}
 classifiers = [
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Environment :: Console",
@@ -26,13 +26,13 @@ classifiers = [
 keywords = [
     "prepdir"
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "typing-extensions>=4.7.1; python_version < '3.11'",
     "importlib-resources>=5.0; python_version < '3.9'",
     "pyyaml>=6.0",
     "dynaconf>=3.2.6",
-    "prepdir>=0.13.0",
+    "prepdir>=0.17.0",
 ]
 
 [project.optional-dependencies]

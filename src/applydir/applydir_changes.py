@@ -1,5 +1,5 @@
 from typing import List, Dict, Union
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from .applydir_file_change import ApplyDirFileChange
 from .applydir_error import ApplyDirError, ErrorType
 
@@ -7,7 +7,8 @@ class ApplyDirChanges(BaseModel):
     """Parses and validates JSON changes for multiple files."""
     files: List[Dict[str, Union[str, List[ApplyDirFileChange]]]]
 
-    @validator("files")
+    @field_validator("files")
+    @classmethod
     def validate_files(cls, v: List[Dict]) -> List[Dict]:
         errors = []
         for file_dict in v:

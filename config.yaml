@@ -1,6 +1,0 @@
-APPLY_CHANGES:
-  AUTO_APPLY: false  # Set to true to apply changes without user confirmation
-COMMANDS:
-  SHELL_TYPE: "bash"  # Options: "bash", "powershell", "cmd"
-LOGGING:
-  LEVEL: "INFO"  # Options: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"

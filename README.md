@@ -10,12 +10,13 @@
 - **Reliability (>95%)**: Uses ≥10 lines for unique matching in existing files, fuzzy matching (e.g., `difflib`) for robustness, and validates non-existent paths for new files.
 - **Minimal JSON Format**: Simple structure with `file` and `changes` (`original_lines`, `changed_lines`) to reduce LLM output tokens.
 - **Relative Paths**: Matches `prepdir`’s output (e.g., `src/main.py`) relative to the project base directory.
-- **Validation**: Checks JSON structure, syntax, and line matching.
+- **Validation**: Checks JSON structure, file paths, and non-ASCII characters (configurable via `src/applydir/config.yaml`).
 - **Modular Design**: Separates JSON parsing, change validation, line matching, and file operations for clarity and testability.
-- **Git and Linting in vibedir**: `vibedir` handles Git commits, rollbacks, and linting of temporary files.
+- **Git and Linting in vibedir**: `vibedir` handles Git commits, rollbacks, and linting of temporary or actual files.
+- **Configuration**: Uses `prepdir`’s `load_config` to read `.applydir/config.yaml` or the bundled `src/applydir/config.yaml`.
 
 ## JSON Format
-The LLM provides changes in a JSON array of file objects:
+Changes are provided in a JSON array of file objects:
 
 ```json
 [
@@ -23,7 +24,7 @@ The LLM provides changes in a JSON array of file objects:
     "file": "<relative_file_path>",
     "changes": [
       {
-        "original_lines": [<≥10 lines for existing files, or all lines if <10, or empty for new files>],
+        "original_lines": [≥10 lines for existing files, or all lines if <10, or empty for new files>],
         "changed_lines": [<new lines for replacements or full content for new files>]
       }
     ]
@@ -32,19 +33,20 @@ The LLM provides changes in a JSON array of file objects:
 ```
 
 ### Example Cases
-- **Modification**: Replace 10 lines in `src/main.py` with a modified version (e.g., add error handling).
-- **Addition**: Replace 10 lines in `src/main.py` with 10 lines plus new lines (e.g., new function).
-- **Deletion**: Replace 10 lines in `src/main.py` with a subset, omitting deleted lines.
-- **Creation**: Create `src/new_menu.py` with `original_lines: []` and full content in `changed_lines`.
-- **Addition in Markdown**: Add a feature description to `README.md`.
+- **Modification**: Replace ten lines in `src/main.py` with a modified version containing twelve lines (e.g., add error handling).
+- **Addition**: Replace ten lines in `src/main.py` with new lines (e.g., new function plus original ten lines used for context).
+- **Deletion**: Replace twenty lines in `src/main.py` with a subset, omitting deleted lines.
+- **Creation**: Create `src/new_menu.py` with `original_lines: []` and full content of the new file in `changed_lines`.
+
+## Configuration
+- `src/applydir/config.yaml`: Defines validation settings for non-ASCII characters (error, warning, or ignore per file type).
+- Uses `prepdir`’s `load_config` to read `.applydir/config.yaml` or the bundled `src/applydir/config.yaml`.
 
 ## Class Structure
-`applydir` uses five classes, adhering to Python best practices (PEP 8, PEP 20):
-
 1. **ApplyDirError (Pydantic)**:
-   - Represents a single error, JSON-serializable.
-   - Attributes: `change: Optional[ApplyDirFileChange]`, `error_type: str`, `message: str`, `details: Optional[Dict]`.
-   - Validates `error_type` (e.g., `json_structure`, `syntax`) and `message`.
+   - Represents a single error or warning, JSON-serializable.
+   - Attributes: `change: Optional[ApplyDirFileChange]`, `error_type: ErrorType`, `severity: ErrorSeverity`, `message: str`, `details: Optional[Dict]`.
+   - Validates `error_type` (enum: `json_structure`, `file_path`, etc.), `severity` (enum: `error`, `warning`), and non-empty `message`.
 
 2. **ApplyDirChanges (Pydantic)**:
    - Parses and validates JSON, creating `ApplyDirFileChange` objects with `file` injected.
@@ -53,7 +55,7 @@ The LLM provides changes in a JSON array of file objects:
 
 3. **ApplyDirFileChange (Pydantic)**:
    - Represents and validates a single change, including the file path.
-   - Validates syntax and additions (e.g., `changed_lines` starts with `original_lines`).
+   - Validates file paths (relative, non-empty) and non-ASCII characters (configurable via `src/applydir/config.yaml`).
    - Attributes: `file: str`, `original_lines: List[str]`, `changed_lines: List[str]`.
 
 4. **ApplyDirMatcher**:
@@ -68,23 +70,25 @@ The LLM provides changes in a JSON array of file objects:
    - Methods: `apply_changes()`, `apply_single_change(change: ApplyDirFileChange)`.
 
 ## Error Format
-Errors are returned as `List[ApplyDirError]`, serialized as JSON:
+Errors and warnings are returned as `List[ApplyDirError]`, serialized as JSON:
 
 ```json
 [
   {
     "change": {
       "file": "src/main.py",
-      "original_lines": ["print(\"Hello\")", "..."],
-      "changed_lines": ["print(x)", "..."]
+      "original_lines": ["print('Hello')"],
+      "changed_lines": ["print('Hello 😊')"]
     },
     "error_type": "syntax",
-    "message": "Invalid Python syntax in changed_lines",
-    "details": {"pylint_error": "undefined-variable: 'x' at line 5"}
+    "severity": "warning",
+    "message": "Non-ASCII characters found in changed_lines",
+    "details": {"line": "print('Hello 😊')", "line_number": 1}
   },
   {
     "change": null,
     "error_type": "json_structure",
+    "severity": "error",
     "message": "JSON is not an array",
     "details": {}
   }
@@ -92,29 +96,29 @@ Errors are returned as `List[ApplyDirError]`, serialized as JSON:
 ```
 
 ### Error Types
-- `json_structure`: Invalid JSON.
-- `file_path`: Invalid `file` path.
-- `changes_empty`: Empty `changes` array.
-- `syntax`: Invalid `changed_lines` syntax.
-- `addition_mismatch`: `changed_lines` doesn’t start with `original_lines`.
-- `empty_changed_lines`: `changed_lines` empty for new files.
-- `matching`: No match for `original_lines`.
-- `file_system`: File exists, permissions, disk errors.
-- `linting`: Linting failures in `vibedir`.
+- `json_structure`: Bad JSON structure received.
+- `file_path`: Invalid file path provided.
+- `changes_empty`: Empty changes array for file.
+- `syntax`: Invalid syntax in changed lines (e.g., non-ASCII characters, configurable via `src/applydir/config.yaml`).
+- `empty_changed_lines`: Empty changed lines for new file.
+- `matching`: No matching lines found.
+- `file_system`: File system operation failed.
+- `linting`: Linting failed on file (handled by vibedir).
 
 ## Workflow
 1. **User Input**: User provides a prompt (e.g., “add a save button”) and project directory to `vibedir`.
 2. **vibedir**:
+   - Uses `prepdir`’s `load_config` to read its `config.yaml` and `configure_logging` for logging.
    - Calls `prepdir` for file contents (e.g., `src/main.py`).
    - Sends prompt to LLM, receives JSON.
    - Commits or backs up state (Git or files).
    - Passes JSON to `ApplyDirChanges`.
 3. **ApplyDirChanges**: Parses JSON, creates and validates `ApplyDirFileChange` objects, returns `List[ApplyDirError]`.
-4. **ApplyDirFileChange**: Validates syntax and additions, returns `List[ApplyDirError]`.
+4. **ApplyDirFileChange**: Validates file paths and non-ASCII characters, returns `List[ApplyDirError]`.
 5. **ApplyDirApplicator**: Iterates over changes, uses `ApplyDirMatcher`, writes to temporary files, returns `List[ApplyDirError]`.
 6. **ApplyDirMatcher**: Matches `original_lines`, returns range or `List[ApplyDirError]`.
 7. **vibedir**:
-   - Runs linters (e.g., `pylint`, `markdownlint`) on temporary files, returns `List[ApplyDirError]`.
+   - Runs linters (e.g., `pylint`, `markdownlint`) on temporary or actual files, returns `List[ApplyDirError]`.
    - On success: Moves files to codebase, commits.
    - On errors: Displays errors or queries LLM, discards temporary files.
    - On rejection: Reverts via Git or backups.
@@ -125,40 +129,38 @@ Errors are returned as `List[ApplyDirError]`, serialized as JSON:
   - After application: Commit changes or revert on errors/rejection.
   - Non-Git projects: Use file backups.
 - **Linting (vibedir)**:
-  - Runs linters on temporary files (e.g., `.applydir_temp`).
-  - Returns `List[ApplyDirError]` with `error_type: "linting"`.
+  - Runs linters on temporary files (e.g., `.applydir_temp`) or actual files, per `vibedir`’s `config.yaml`.
+  - Returns `List[ApplyDirError]` with `error_type: "linting"`, `severity: "error"`.
 
 ## Validation
 - **ApplyDirChanges**: Validates JSON structure and file paths.
-- **ApplyDirFileChange**: Checks syntax, additions, non-empty `changed_lines` for new files.
-- **ApplyDirApplicator**: Verifies path non-existence, relies on `ApplyDirMatcher`.
-- **ApplyDirMatcher**: Ensures `original_lines` matches file content.
+- **ApplyDirFileChange**: Checks file paths (relative, non-empty) and non-ASCII characters (configurable).
+- **ApplyDirApplicator**: Verifies path non-existence for new files, relies on `ApplyDirMatcher`.
+- **ApplyDirMatcher**: Ensures `original_lines` matches file content using fuzzy matching.
 
 ## Python Best Practices
 - **PEP 8**: Clear, descriptive names (e.g., `ApplyDirError`).
-- **PEP 20**: Explicit `change` in `ApplyDirError`, simple class roles.
+- **PEP 20**: Explicit `change` and `severity` in `ApplyDirError`, simple class roles.
 - **Type Safety**: Pydantic for type-safe errors and changes.
 - **Testability**: Small classes and structured errors.
-- **Documentation**: Planned docstrings for all methods.
+- **Documentation**: Docstrings for all classes and methods.
 
 ## Edge Cases
 - **New File Creation**: Validate non-existent paths.
 - **Unmatched Lines**: Fuzzy matching with `ApplyDirError`.
-- **Invalid Syntax**: Detected by `ApplyDirFileChange`.
+- **Invalid Syntax**: Detected by `ApplyDirFileChange` (e.g., non-ASCII warnings).
 - **Short Files**: Handled by `vibedir`’s prompt.
 - **File System Issues**: Caught by `ApplyDirApplicator`.
 - **Linting Failures**: Caught by `vibedir`.
 
 ## Dependencies
+- **prepdir**: Provides `load_config` for configuration and `configure_logging` for test and `vibedir` logging.
 - **Pydantic**: For JSON parsing, validation, and error handling.
 - **difflib**: For fuzzy matching.
-- **Syntax Checkers**: `pylint` (Python), `markdownlint` (Markdown).
+- **PyYAML**: For parsing `src/applydir/config.yaml` (via `prepdir`’s `load_config`).
 
 ## Next Steps
-- Finalize `ApplyDirError`:
-  - Define `error_type` enum.
-  - Specify truncation for large `original_lines`/`changed_lines`.
 - Specify `ApplyDirMatcher` settings (e.g., `difflib` threshold).
-- Plan logging for `ApplyDirApplicator`.
+- Plan logging for `ApplyDirApplicator` using `prepdir`’s `configure_logging`.
 - Detail `vibedir`’s Git/backup and linting strategy.
-- Develop test cases for all scenarios.
+- Develop additional test cases for `ApplyDirFileChange`, `ApplyDirChanges`, etc.

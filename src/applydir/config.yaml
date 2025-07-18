@@ -1,0 +1,16 @@
+
+COMMANDS:
+  SHELL_TYPE: "bash"  # Options: "bash", "powershell", "cmd"
+LOGGING:
+  LEVEL: "INFO"  # Options: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+
+validation:
+  non_ascii:
+    default: warning
+    rules:
+      - extensions: [".py", ".js"]
+        action: error
+      - extensions: [".md", ".markdown"]
+        action: ignore
+      - extensions: [".json", ".yaml"]
+        action: warning
