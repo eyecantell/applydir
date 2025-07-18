@@ -1,4 +1,4 @@
-# applydir
+# applydir - functionality "coming soon"
 
 ## Overview
 `applydir` is a Python tool that automates the application of LLM-generated code changes to a codebase, achieving >95% reliability. It processes changes specified in a JSON format, using a unified "replace" approach to handle modifications, additions, deletions, and new file creation. Designed to work with `prepdir` (supplies full file contents) and `vibedir` (orchestrates prompts, LLM communication, Git integration, and linting), `applydir` validates and applies changes while ensuring consistency with resolvable file paths and robust error handling.
@@ -16,7 +16,7 @@
 - **Configuration**: Uses `prepdir`’s `load_config` to read `.applydir/config.yaml` or the bundled `src/applydir/config.yaml`. Configurable temporary vs. actual file writes.
 
 ## JSON Format
-The LLM provides changes in a JSON array of file objects:
+Changes are provided in a JSON array of file objects:
 
 ```json
 [
@@ -24,7 +24,7 @@ The LLM provides changes in a JSON array of file objects:
     "file": "<relative_or_absolute_file_path>",
     "changes": [
       {
-        "original_lines": [<≥10 lines for existing files, or all lines if <10, or empty for new files>],
+        "original_lines": [≥10 lines for existing files, or all lines if <10, or empty for new files>],
         "changed_lines": [<new lines for replacements or full content for new files>]
       }
     ]
@@ -33,11 +33,10 @@ The LLM provides changes in a JSON array of file objects:
 ```
 
 ### Example Cases
-- **Modification**: Replace 10 lines in `src/main.py` with a modified version (e.g., add error handling).
-- **Addition**: Replace 10 lines in `src/main.py` with new lines (e.g., new function).
-- **Deletion**: Replace 10 lines in `src/main.py` with a subset, omitting deleted lines.
-- **Creation**: Create `src/new_menu.py` with `original_lines: []` and full content in `changed_lines`.
-- **Addition in Markdown**: Add a feature description to `README.md`.
+- **Modification**: Replace ten lines in `src/main.py` with a modified version containing twelve lines (e.g., add error handling).
+- **Addition**: Replace ten lines in `src/main.py` with new lines (e.g., new function plus original ten lines used for context).
+- **Deletion**: Replace twenty lines in `src/main.py` with a subset, omitting deleted lines.
+- **Creation**: Create `src/new_menu.py` with `original_lines: []` and full content of the new file in `changed_lines`.
 
 ## Configuration
 - `src/applydir/config.yaml`: Defines validation settings for non-ASCII characters (error, warning, or ignore per file type) and whether to use temporary files (`use_temp_files`).
@@ -56,7 +55,7 @@ The LLM provides changes in a JSON array of file objects:
 
 3. **ApplydirFileChange (Pydantic)**:
    - Represents and validates a single change, including the file path.
-   - Validates file paths (resolvable within project directory) and non-ASCII characters (configurable via `src/applydir/config.yaml`).
+   - Validates file paths (resolvable within project directory) and non-ASCII characters (configurable).
    - Attributes: `file: str`, `original_lines: List[str]`, `changed_lines: List[str]`.
 
 4. **ApplydirMatcher**:
@@ -66,7 +65,7 @@ The LLM provides changes in a JSON array of file objects:
 
 5. **ApplydirApplicator**:
    - Applies changes using `ApplydirFileChange` and `ApplydirMatcher`.
-   - Writes to temporary files (e.g., `.applydir_temp`) or actual files, configurable via `src/applydir/config.yaml`.
+   - Writes to temporary files (e.g., `.applydir_temp`) or actual files (configurable).
    - Attributes: `base_dir: str`, `changes: ApplydirChanges`, `matcher: ApplydirMatcher`, `logger`.
    - Methods: `apply_changes()`, `apply_single_change(change: ApplydirFileChange)`.
 
@@ -158,7 +157,6 @@ Errors and warnings are returned as `List[ApplydirError]`, serialized as JSON:
 - **prepdir**: Provides `load_config` for configuration and `configure_logging` for test and `vibedir` logging.
 - **Pydantic**: For JSON parsing, validation, and error handling.
 - **difflib**: For fuzzy matching.
-- **PyYAML**: For parsing `src/applydir/config.yaml` (via `prepdir`’s `load_config`).
 
 ## Next Steps
 - Specify `ApplydirMatcher` settings (e.g., `difflib` threshold).

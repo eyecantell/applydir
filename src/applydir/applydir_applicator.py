@@ -6,8 +6,10 @@ from .applydir_changes import ApplydirChanges
 from .applydir_matcher import ApplydirMatcher
 import logging
 
+
 class ApplydirApplicator:
     """Applies validated changes to files."""
+
     def __init__(self, base_dir: str, changes: ApplydirChanges, matcher: ApplydirMatcher, logger: logging.Logger):
         self.base_dir = Path(base_dir)
         self.changes = changes
@@ -34,13 +36,15 @@ class ApplydirApplicator:
             if change.original_lines:
                 # Existing file: Match and replace
                 if not (self.base_dir / change.file).exists():
-                    errors.append(ApplydirError(
-                        change=change,
-                        error_type=ErrorType.FILE_SYSTEM,
-                        severity=ErrorSeverity.ERROR,
-                        message="File does not exist for modification",
-                        details={"file": change.file}
-                    ))
+                    errors.append(
+                        ApplydirError(
+                            change=change,
+                            error_type=ErrorType.FILE_SYSTEM,
+                            severity=ErrorSeverity.ERROR,
+                            message="File does not exist for modification",
+                            details={"file": change.file},
+                        )
+                    )
                     return errors
                 with open(self.base_dir / change.file, "r") as f:
                     file_content = f.readlines()
@@ -52,23 +56,27 @@ class ApplydirApplicator:
             else:
                 # New file: Ensure path doesn’t exist
                 if (self.base_dir / change.file).exists():
-                    errors.append(ApplydirError(
-                        change=change,
-                        error_type=ErrorType.FILE_SYSTEM,
-                        severity=ErrorSeverity.ERROR,
-                        message="File already exists for new file creation",
-                        details={"file": change.file}
-                    ))
+                    errors.append(
+                        ApplydirError(
+                            change=change,
+                            error_type=ErrorType.FILE_SYSTEM,
+                            severity=ErrorSeverity.ERROR,
+                            message="File already exists for new file creation",
+                            details={"file": change.file},
+                        )
+                    )
                     return errors
                 self.write_changes(file_path, change.changed_lines, None)
         except Exception as e:
-            errors.append(ApplydirError(
-                change=change,
-                error_type=ErrorType.FILE_SYSTEM,
-                severity=ErrorSeverity.ERROR,
-                message=f"File operation failed: {str(e)}",
-                details={"file": change.file}
-            ))
+            errors.append(
+                ApplydirError(
+                    change=change,
+                    error_type=ErrorType.FILE_SYSTEM,
+                    severity=ErrorSeverity.ERROR,
+                    message=f"File operation failed: {str(e)}",
+                    details={"file": change.file},
+                )
+            )
         return errors
 
     def write_changes(self, file_path: Path, changed_lines: List[str], range: Optional[Dict]):

@@ -5,8 +5,10 @@ from pathlib import Path
 from prepdir import load_config
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 
+
 class ApplydirFileChange(BaseModel):
     """Represents a single change to a file, including path and line changes."""
+
     file: str
     original_lines: List[str]
     changed_lines: List[str]
@@ -32,13 +34,15 @@ class ApplydirFileChange(BaseModel):
         errors = []
         if not self.original_lines:
             if not self.changed_lines:
-                errors.append(ApplydirError(
-                    change=self,
-                    error_type=ErrorType.EMPTY_CHANGED_LINES,
-                    message="changed_lines cannot be empty for new files",
-                    details={},
-                    severity=ErrorSeverity.ERROR
-                ))
+                errors.append(
+                    ApplydirError(
+                        change=self,
+                        error_type=ErrorType.EMPTY_CHANGED_LINES,
+                        message="changed_lines cannot be empty for new files",
+                        details={},
+                        severity=ErrorSeverity.ERROR,
+                    )
+                )
             return errors
 
         # Load non-ASCII validation rules from applydir_config.yaml
@@ -50,21 +54,25 @@ class ApplydirFileChange(BaseModel):
                 break
 
         # Syntax check: Detect non-ASCII characters in changed_lines
-        non_ascii_pattern = re.compile(r'[^\x00-\x7F]')
+        non_ascii_pattern = re.compile(r"[^\x00-\x7F]")
         for line in self.changed_lines:
             if non_ascii_pattern.search(line):
                 severity = (
-                    ErrorSeverity.ERROR if non_ascii_action == "error"
-                    else ErrorSeverity.WARNING if non_ascii_action == "warning"
+                    ErrorSeverity.ERROR
+                    if non_ascii_action == "error"
+                    else ErrorSeverity.WARNING
+                    if non_ascii_action == "warning"
                     else None
                 )
                 if severity:
-                    errors.append(ApplydirError(
-                        change=self,
-                        error_type=ErrorType.SYNTAX,
-                        message="Non-ASCII characters found in changed_lines",
-                        details={"line": line, "line_number": self.changed_lines.index(line) + 1},
-                        severity=severity
-                    ))
+                    errors.append(
+                        ApplydirError(
+                            change=self,
+                            error_type=ErrorType.SYNTAX,
+                            message="Non-ASCII characters found in changed_lines",
+                            details={"line": line, "line_number": self.changed_lines.index(line) + 1},
+                            severity=severity,
+                        )
+                    )
 
         return errors

@@ -208,7 +208,6 @@ Errors are returned as `List[ApplydirError]`, serialized as JSON:
 - **prepdir**: Provides `load_config` for configuration and `configure_logging` for test and `vibedir` logging.
 - **Pydantic**: For JSON parsing, validation, and error handling.
 - **difflib**: For fuzzy matching.
-- **PyYAML**: For parsing `src/applydir/config.yaml` (via `prepdir`’s `load_config`).
 
 ## Next Steps
 - Specify `ApplydirMatcher` settings (e.g., `difflib` threshold).

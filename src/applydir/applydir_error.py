@@ -2,9 +2,11 @@ from typing import Optional, Dict
 from pydantic import BaseModel, field_validator
 from enum import Enum
 
+
 class ErrorSeverity(str, Enum):
     ERROR = "error"
     WARNING = "warning"
+
 
 class ErrorType(str, Enum):
     JSON_STRUCTURE = "json_structure"
@@ -15,6 +17,7 @@ class ErrorType(str, Enum):
     MATCHING = "matching"
     FILE_SYSTEM = "file_system"
     LINTING = "linting"
+
 
 class ApplydirError(BaseModel):
     """Represents an error or warning in the applydir process, used for LLM-related validation and vibedir linting.
@@ -29,6 +32,7 @@ class ApplydirError(BaseModel):
     - file_system: File system operation failed (e.g., file exists, permissions).
     - linting: Linting failed on file (handled by vibedir).
     """
+
     ERROR_DESCRIPTIONS = {
         ErrorType.JSON_STRUCTURE: "Bad JSON structure received",
         ErrorType.FILE_PATH: "Invalid file path provided",
@@ -57,6 +61,7 @@ class ApplydirError(BaseModel):
     @classmethod
     def ensure_details_dict(cls, v: Optional[Dict]) -> Optional[Dict]:
         return v or {}
+
 
 # Resolve forward references
 ApplydirError.model_rebuild()
