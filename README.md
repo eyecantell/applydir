@@ -13,7 +13,8 @@
 - **Validation**: Checks JSON structure, file paths, and non-ASCII characters (configurable via `src/applydir/config.yaml`). Warns on extra JSON fields.
 - **Modular Design**: Separates JSON parsing, change validation, line matching, and file operations for clarity and testability.
 - **Git and Linting in vibedir**: `vibedir` handles Git commits, rollbacks, and linting of temporary or actual files.
-- **Configuration**: Uses `prepdir`’s `load_config` to read `.applydir/config.yaml` or the bundled `src/applydir/config.yaml`. Configurable temporary vs. actual file writes.
+- **Configuration**: Uses `prepdir`’s `load_config` to read `.applydir/config.yaml` or the bundled `src/applydir/config.yaml`. Configurable temporary vs. actual file writes, overridable programmatically or via CLI.
+- **CLI Utility**: Run `applydir <input_file>` to apply changes from a JSON file, with options to override configuration (e.g., `--no-temp-files`, `--non-ascii-action`).
 
 ## JSON Format
 Changes are provided in a JSON array of file objects:
@@ -24,8 +25,8 @@ Changes are provided in a JSON array of file objects:
     "file": "<relative_or_absolute_file_path>",
     "changes": [
       {
-        "original_lines": [≥10 lines for existing files, or all lines if <10, or empty for new files>],
-        "changed_lines": [<new lines for replacements or full content for new files>]
+        "original_lines": [">=10 lines for existing files, or all lines if <10, or empty for new files"],
+        "changed_lines": ["<new lines for replacements or full content for new files>"]
       }
     ]
   }
@@ -36,11 +37,76 @@ Changes are provided in a JSON array of file objects:
 - **Modification**: Replace ten lines in `src/main.py` with a modified version containing twelve lines (e.g., add error handling).
 - **Addition**: Replace ten lines in `src/main.py` with new lines (e.g., new function plus original ten lines used for context).
 - **Deletion**: Replace twenty lines in `src/main.py` with a subset, omitting deleted lines.
-- **Creation**: Create `src/new_menu.py` with `original_lines: []` and full content of the new file in `changed_lines`.
+- **Creation**: Create `src/new_menu.py` with `original_lines: []` and full content in `changed_lines`.
+- **Addition in Markdown**: Add a feature description to `README.md`.
+
+## Installation
+```bash
+pip install applydir
+```
+
+## Usage
+### CLI
+Run the `applydir` utility to apply changes from a JSON file:
+```bash
+applydir changes.json --base-dir /path/to/project --no-temp-files --non-ascii-action=error --log-level=DEBUG
+```
+- `changes.json`: Path to JSON file with changes.
+- `--base-dir`: Base directory for file paths (default: `.`).
+- `--no-temp-files`: Write directly to actual files instead of `.applydir_temp`.
+- `--non-ascii-action`: Override non-ASCII validation (`error`, `warning`, `ignore`).
+- `--log-level`: Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`).
+
+### Programmatic
+```python
+from applydir import ApplydirApplicator, ApplydirChanges, ApplydirMatcher
+import logging
+from prepdir import configure_logging
+
+logger = logging.getLogger("applydir")
+configure_logging(logger, level="INFO")
+
+changes = ApplydirChanges(files=[
+    {
+        "file": "src/main.py",
+        "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}]
+    }
+])
+matcher = ApplydirMatcher(similarity_threshold=0.95)
+applicator = ApplydirApplicator(
+    base_dir="/path/to/project",
+    changes=changes,
+    matcher=matcher,
+    logger=logger,
+    config_override={"use_temp_files": False, "validation": {"non_ascii": {"default": "error"}}}
+)
+errors = applicator.apply_changes()
+if errors:
+    for error in errors:
+        print(f"{error.severity}: {error.message} - {error.details}")
+else:
+    print("Changes applied successfully")
+```
 
 ## Configuration
 - `src/applydir/config.yaml`: Defines validation settings for non-ASCII characters (error, warning, or ignore per file type) and whether to use temporary files (`use_temp_files`).
 - Uses `prepdir`’s `load_config` to read `.applydir/config.yaml` or the bundled `src/applydir/config.yaml`.
+- Overrides can be passed programmatically via `config_override` or via CLI arguments.
+
+Example `config.yaml`:
+```yaml
+validation:
+  non_ascii:
+    default: warning
+    rules:
+      - extensions: [".py", ".js"]
+        action: error
+      - extensions: [".md", ".markdown"]
+        action: ignore
+      - extensions: [".json", ".yaml"]
+        action: warning
+use_temp_files: true
+```
 
 ## Class Structure
 1. **ApplydirError (Pydantic)**:
@@ -65,8 +131,8 @@ Changes are provided in a JSON array of file objects:
 
 5. **ApplydirApplicator**:
    - Applies changes using `ApplydirFileChange` and `ApplydirMatcher`.
-   - Writes to temporary files (e.g., `.applydir_temp`) or actual files (configurable).
-   - Attributes: `base_dir: str`, `changes: ApplydirChanges`, `matcher: ApplydirMatcher`, `logger`.
+   - Writes to temporary files (e.g., `.applydir_temp`) or actual files, configurable via `config.yaml` or `config_override`.
+   - Attributes: `base_dir: str`, `changes: ApplydirChanges`, `matcher: ApplydirMatcher`, `logger`, `config_override: Optional[Dict]`.
    - Methods: `apply_changes()`, `apply_single_change(change: ApplydirFileChange)`.
 
 ## Error Format
@@ -99,23 +165,23 @@ Errors and warnings are returned as `List[ApplydirError]`, serialized as JSON:
 - `json_structure`: Bad JSON structure received (e.g., not an array or extra fields).
 - `file_path`: Invalid file path provided (e.g., outside project directory).
 - `changes_empty`: Empty changes array for file.
-- `syntax`: Invalid syntax in changed lines (e.g., non-ASCII characters, configurable via `src/applydir/config.yaml`).
+- `syntax`: Invalid syntax in changed lines (e.g., non-ASCII characters, configurable via `config.yaml` or `config_override`).
 - `empty_changed_lines`: Empty changed lines for new file.
 - `matching`: No matching lines found.
 - `file_system`: File system operation failed.
 - `linting`: Linting failed on file (handled by vibedir).
 
 ## Workflow
-1. **User Input**: User provides a prompt (e.g., “add a save button”) and project directory to `vibedir`.
+1. **User Input**: User provides a prompt (e.g., “add a save button”) and project directory to `vibedir` or runs `applydir` CLI.
 2. **vibedir**:
    - Uses `prepdir`’s `load_config` to read its `config.yaml` and `configure_logging` for logging.
    - Calls `prepdir` for file contents (e.g., `src/main.py`).
    - Sends prompt to LLM, receives JSON.
    - Commits or backs up state (Git or files).
-   - Passes JSON to `ApplydirChanges`.
+   - Passes JSON and optional `config_override` to `ApplydirChanges` and `ApplydirApplicator`.
 3. **ApplydirChanges**: Parses JSON, creates and validates `ApplydirFileChange` objects, returns `List[ApplydirError]`.
-4. **ApplydirFileChange**: Validates file paths and non-ASCII characters, returns `List[ApplydirError]`.
-5. **ApplydirApplicator**: Iterates over changes, uses `ApplydirMatcher`, writes to temporary or actual files, returns `List[ApplydirError]`.
+4. **ApplydirFileChange**: Validates file paths and non-ASCII characters (using `config_override` if provided), returns `List[ApplydirError]`.
+5. **ApplydirApplicator**: Iterates over changes, uses `ApplydirMatcher`, writes to temporary or actual files (per `config_override` or `config.yaml`), returns `List[ApplydirError]`.
 6. **ApplydirMatcher**: Matches `original_lines`, returns range or `List[ApplydirError]`.
 7. **vibedir**:
    - Runs linters (e.g., `pylint`, `markdownlint`) on temporary or actual files, returns `List[ApplydirError]`.
@@ -134,7 +200,7 @@ Errors and warnings are returned as `List[ApplydirError]`, serialized as JSON:
 
 ## Validation
 - **ApplydirChanges**: Validates JSON structure, file paths, and warns on extra fields.
-- **ApplydirFileChange**: Checks file paths (resolvable within project) and non-ASCII characters (configurable).
+- **ApplydirFileChange**: Checks file paths (resolvable within project) and non-ASCII characters (configurable via `config.yaml` or `config_override`).
 - **ApplydirApplicator**: Verifies path non-existence for new files, relies on `ApplydirMatcher`.
 - **ApplydirMatcher**: Ensures `original_lines` matches file content using fuzzy matching.
 
@@ -157,6 +223,8 @@ Errors and warnings are returned as `List[ApplydirError]`, serialized as JSON:
 - **prepdir**: Provides `load_config` for configuration and `configure_logging` for test and `vibedir` logging.
 - **Pydantic**: For JSON parsing, validation, and error handling.
 - **difflib**: For fuzzy matching.
+- **PyYAML**: For parsing `src/applydir/config.yaml` (via `prepdir`’s `load_config`).
+- **dynaconf**: For configuration merging and overrides.
 
 ## Next Steps
 - Specify `ApplydirMatcher` settings (e.g., `difflib` threshold).

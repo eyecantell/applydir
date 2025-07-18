@@ -1,27 +1,31 @@
 from typing import List, Optional, Dict
 from pathlib import Path
 from prepdir import load_config
+from dynaconf import Dynaconf
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from .applydir_changes import ApplydirChanges
 from .applydir_matcher import ApplydirMatcher
 import logging
 
-
 class ApplydirApplicator:
     """Applies validated changes to files."""
 
-    def __init__(self, base_dir: str, changes: ApplydirChanges, matcher: ApplydirMatcher, logger: logging.Logger):
+    def __init__(self, base_dir: str, changes: ApplydirChanges, matcher: ApplydirMatcher, logger: logging.Logger, config_override: Optional[Dict] = None):
         self.base_dir = Path(base_dir)
         self.changes = changes
         self.matcher = matcher
         self.logger = logger
-        self.config = load_config(namespace="applydir") or {"use_temp_files": True}
-        self.temp_dir = self.base_dir / ".applydir_temp" if self.config["use_temp_files"] else self.base_dir
+        # Load default config and apply overrides
+        default_config = load_config(namespace="applydir") or {"use_temp_files": True, "validation": {"non_ascii": {"default": "warning", "rules": []}}}
+        self.config = Dynaconf(settings_files=[default_config], merge_enabled=True)
+        if config_override:
+            self.config.update(config_override, merge=True)
+        self.temp_dir = self.base_dir / ".applydir_temp" if self.config.get("use_temp_files", True) else self.base_dir
 
     def apply_changes(self) -> List[ApplydirError]:
         """Applies all changes, writing to temporary or actual files."""
         errors = []
-        if self.config["use_temp_files"] and not self.temp_dir.exists():
+        if self.config.get("use_temp_files", True) and not self.temp_dir.exists():
             self.temp_dir.mkdir(parents=True)
         for file_entry in self.changes.files:
             for change in file_entry["changes"]:
@@ -31,7 +35,7 @@ class ApplydirApplicator:
     def apply_single_change(self, change: ApplydirFileChange) -> List[ApplydirError]:
         """Applies a single change to a file."""
         errors = []
-        file_path = self.temp_dir / change.file if self.config["use_temp_files"] else self.base_dir / change.file
+        file_path = self.temp_dir / change.file if self.config.get("use_temp_files", True) else self.base_dir / change.file
         try:
             if change.original_lines:
                 # Existing file: Match and replace

@@ -3,8 +3,8 @@ from pydantic import BaseModel, field_validator
 import re
 from pathlib import Path
 from prepdir import load_config
+from dynaconf import Dynaconf
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
-
 
 class ApplydirFileChange(BaseModel):
     """Represents a single change to a file, including path and line changes."""
@@ -19,7 +19,6 @@ class ApplydirFileChange(BaseModel):
         """Validates that the file path is resolvable within the project base_dir."""
         if not v:
             raise ValueError("File path must be non-empty")
-        # base_dir may be provided via Pydantic's values (e.g., from ApplydirApplicator)
         base_dir = values.get("base_dir", Path.cwd())
         try:
             resolved_path = (base_dir / Path(v)).resolve()
@@ -29,8 +28,8 @@ class ApplydirFileChange(BaseModel):
             raise ValueError(f"Invalid file path: {str(e)}")
         return v
 
-    def validate_change(self) -> List[ApplydirError]:
-        """Validates syntax for the change."""
+    def validate_change(self, config_override: Optional[Dict] = None) -> List[ApplydirError]:
+        """Validates syntax for the change, using config overrides if provided."""
         errors = []
         if not self.original_lines:
             if not self.changed_lines:
@@ -45,12 +44,17 @@ class ApplydirFileChange(BaseModel):
                 )
             return errors
 
-        # Load non-ASCII validation rules from applydir_config.yaml
-        config = load_config(namespace="applydir") or {"validation": {"non_ascii": {"default": "warning", "rules": []}}}
-        non_ascii_action = config["validation"]["non_ascii"]["default"]
-        for rule in config["validation"]["non_ascii"]["rules"]:
+        # Load config and apply overrides
+        default_config = load_config(namespace="applydir") or {"validation": {"non_ascii": {"default": "warning", "rules": []}}}
+        config = Dynaconf(settings_files=[default_config], merge_enabled=True)
+        if config_override:
+            config.update(config_override, merge=True)
+
+        # Get non-ASCII validation action
+        non_ascii_action = config.get("validation.non_ascii.default", "warning")
+        for rule in config.get("validation.non_ascii.rules", []):
             if any(self.file.endswith(ext) for ext in rule.get("extensions", [])):
-                non_ascii_action = rule["action"]
+                non_ascii_action = rule.get("action", non_ascii_action)
                 break
 
         # Syntax check: Detect non-ASCII characters in changed_lines
