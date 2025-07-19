@@ -1,5 +1,6 @@
 import pytest
 import logging
+from pathlib import Path
 from prepdir import configure_logging
 from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from applydir.applydir_file_change import ApplydirFileChange
@@ -35,58 +36,65 @@ def test_error_creation_warning_severity():
         error_type=ErrorType.SYNTAX,
         severity=ErrorSeverity.WARNING,
         message="Non-ASCII characters found",
-        details={"line": "print('Hello 😊')", "line_number": 1},
+        details={"line": "print('Hello World')", "line_number": 1},
     )
     logger.debug(f"Created warning: {error}")
     assert error.error_type == ErrorType.SYNTAX
     assert error.severity == ErrorSeverity.WARNING
     assert error.message == "Non-ASCII characters found"
-    assert error.details == {"line": "print('Hello 😊')", "line_number": 1}
+    assert error.details == {"line": "print('Hello World')", "line_number": 1}
 
 
 def test_error_with_file_change():
     """Test ApplydirError with an ApplydirFileChange."""
     change = ApplydirFileChange(
-        file="src/main.py", original_lines=["print('Hello')"], changed_lines=["print('Hello 😊')"], base_dir=Path.cwd()
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd()
     )
     error = ApplydirError(
         change=change,
         error_type=ErrorType.SYNTAX,
         severity=ErrorSeverity.WARNING,
         message="Non-ASCII characters found",
-        details={"line": "print('Hello 😊')", "line_number": 1},
+        details={"line": "print('Hello World')", "line_number": 1},
     )
     logger.debug(f"Created error with change: {error}")
     assert error.change == change
     assert error.error_type == ErrorType.SYNTAX
     assert error.severity == ErrorSeverity.WARNING
     assert error.message == "Non-ASCII characters found"
-    assert error.details == {"line": "print('Hello 😊')", "line_number": 1}
+    assert error.details == {"line": "print('Hello World')", "line_number": 1}
 
 
 def test_error_serialization():
     """Test JSON serialization of ApplydirError."""
     change = ApplydirFileChange(
-        file="src/main.py", original_lines=["print('Hello')"], changed_lines=["print('Hello 😊')"], base_dir=Path.cwd()
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd()
     )
     error = ApplydirError(
         change=change,
         error_type=ErrorType.SYNTAX,
         severity=ErrorSeverity.WARNING,
         message="Non-ASCII characters found",
-        details={"line": "print('Hello 😊')", "line_number": 1},
+        details={"line": "print('Hello World')", "line_number": 1},
     )
-    error_dict = error.dict()
+    error_dict = error.model_dump()
     logger.debug(f"Serialized error: {error_dict}")
     assert error_dict["change"] == {
         "file": "src/main.py",
         "original_lines": ["print('Hello')"],
-        "changed_lines": ["print('Hello 😊')"],
+        "changed_lines": ["print('Hello World')"],
     }
     assert error_dict["error_type"] == "syntax"
     assert error_dict["severity"] == "warning"
     assert error_dict["message"] == "Non-ASCII characters found"
-    assert error_dict["details"] == {"line": "print('Hello 😊')", "line_number": 1}
+    assert error_dict["details"] == {"line": "print('Hello World')", "line_number": 1}
+    assert "ERROR_DESCRIPTIONS" not in error_dict  # ClassVar not serialized
 
 
 def test_error_descriptions():
@@ -97,11 +105,27 @@ def test_error_descriptions():
         logger.debug(f"Error description for {error_type}: {ApplydirError.ERROR_DESCRIPTIONS[error_type]}")
 
 
+def test_default_severity():
+    """Test default severity is ERROR."""
+    error = ApplydirError(
+        change=None,
+        error_type=ErrorType.JSON_STRUCTURE,
+        message="Test default severity",
+        details={"test": "value"},
+    )
+    logger.debug(f"Created error with default severity: {error}")
+    assert error.severity == ErrorSeverity.ERROR
+
+
 def test_invalid_message():
     """Test that empty message raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
         ApplydirError(
-            change=None, error_type=ErrorType.JSON_STRUCTURE, severity=ErrorSeverity.ERROR, message="", details={}
+            change=None,
+            error_type=ErrorType.JSON_STRUCTURE,
+            severity=ErrorSeverity.ERROR,
+            message="",
+            details={}
         )
     logger.debug(f"Validation error for empty message: {exc_info.value}")
     assert "Message cannot be empty" in str(exc_info.value)
@@ -131,7 +155,7 @@ def test_invalid_error_type():
             details={},
         )
     logger.debug(f"Validation error for invalid error_type: {exc_info.value}")
-    assert "value is not a valid enumeration member" in str(exc_info.value)
+    assert "Input should be 'json_structure'" in str(exc_info.value)
 
 
 def test_invalid_severity():
@@ -145,4 +169,4 @@ def test_invalid_severity():
             details={},
         )
     logger.debug(f"Validation error for invalid severity: {exc_info.value}")
-    assert "value is not a valid enumeration member" in str(exc_info.value)
+    assert "Input should be 'error' or 'warning'" in str(exc_info.value)

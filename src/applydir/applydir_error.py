@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, ClassVar
 from pydantic import BaseModel, field_validator
 from enum import Enum
 
@@ -33,7 +33,7 @@ class ApplydirError(BaseModel):
     - linting: Linting failed on file (handled by vibedir).
     """
 
-    ERROR_DESCRIPTIONS = {
+    ERROR_DESCRIPTIONS: ClassVar[Dict[ErrorType, str]] = {
         ErrorType.JSON_STRUCTURE: "Bad JSON structure received",
         ErrorType.FILE_PATH: "Invalid file path provided",
         ErrorType.CHANGES_EMPTY: "Empty changes array for file",
@@ -61,7 +61,3 @@ class ApplydirError(BaseModel):
     @classmethod
     def ensure_details_dict(cls, v: Optional[Dict]) -> Optional[Dict]:
         return v or {}
-
-
-# Resolve forward references
-ApplydirError.model_rebuild()

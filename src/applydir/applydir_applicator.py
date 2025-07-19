@@ -1,11 +1,12 @@
-from typing import List, Optional, Dict
+import logging
+from .applydir_changes import ApplydirChanges
+from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
+from .applydir_file_change import ApplydirFileChange
+from .applydir_matcher import ApplydirMatcher
+from dynaconf import Dynaconf
 from pathlib import Path
 from prepdir import load_config
-from dynaconf import Dynaconf
-from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
-from .applydir_changes import ApplydirChanges
-from .applydir_matcher import ApplydirMatcher
-import logging
+from typing import List, Optional, Dict
 
 class ApplydirApplicator:
     """Applies validated changes to files."""

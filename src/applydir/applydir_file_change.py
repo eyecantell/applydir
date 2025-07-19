@@ -1,10 +1,11 @@
-from typing import List, Optional
-from pydantic import BaseModel, field_validator
 import re
+from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
+from dynaconf import Dynaconf
 from pathlib import Path
 from prepdir import load_config
-from dynaconf import Dynaconf
-from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
+from pydantic import BaseModel, field_validator
+from typing import List, Optional, Dict
+from pydantic_core.core_schema import ValidationInfo
 
 class ApplydirFileChange(BaseModel):
     """Represents a single change to a file, including path and line changes."""
@@ -15,11 +16,11 @@ class ApplydirFileChange(BaseModel):
 
     @field_validator("file")
     @classmethod
-    def validate_file_path(cls, v: str, values: dict) -> str:
+    def validate_file_path(cls, v: str, info: ValidationInfo) -> str:
         """Validates that the file path is resolvable within the project base_dir."""
         if not v:
             raise ValueError("File path must be non-empty")
-        base_dir = values.get("base_dir", Path.cwd())
+        base_dir = info.data.get("base_dir", Path.cwd())
         try:
             resolved_path = (base_dir / Path(v)).resolve()
             if not str(resolved_path).startswith(str(base_dir.resolve())):

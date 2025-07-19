@@ -1,5 +1,5 @@
 from typing import List, Dict, Union
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, ConfigDict
 from .applydir_file_change import ApplydirFileChange
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 
@@ -9,8 +9,7 @@ class ApplydirChanges(BaseModel):
 
     files: List[Dict[str, Union[str, List[ApplydirFileChange]]]]
 
-    class Config:
-        extra = "allow"  # Allow extra fields in JSON
+    model_config = ConfigDict(extra="allow")  # Allow extra fields in JSON
 
     @field_validator("files")
     @classmethod

@@ -15,3 +15,6 @@ __all__ = [
     "ApplydirApplicator",
     "main",
 ]
+
+# Rebuild Pydantic models after all classes are defined
+ApplydirError.model_rebuild()

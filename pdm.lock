@@ -5,7 +5,7 @@
 groups = ["default", "dev", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:95a9606d0da3a011e05092c12b17c9e12241511e1ad168f5729134c53b68ae7a"
+content_hash = "sha256:9c9ccbb7e633473c7729852ce07f4e7f9db60c6939fa1de3a6b2dc6c3c5863b6"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -744,7 +744,7 @@ files = [
 
 [[package]]
 name = "prepdir"
-version = "0.17.1"
+version = "0.17.2"
 requires_python = ">=3.9"
 summary = "Directory traversal utility to prepare project contents for review"
 groups = ["default"]
@@ -755,8 +755,8 @@ dependencies = [
     "typing-extensions<5.0,>=4.7.1; python_version < \"3.11\"",
 ]
 files = [
-    {file = "prepdir-0.17.1-py3-none-any.whl", hash = "sha256:43225f99c43a3aecf9173e000b636fa0e38d53ad79e9393041b2929061a00373"},
-    {file = "prepdir-0.17.1.tar.gz", hash = "sha256:61dd3a90140ceb4229be27cacf98c842b6f76259e2060e305448c59940503e45"},
+    {file = "prepdir-0.17.2-py3-none-any.whl", hash = "sha256:e427a0efa15fec8cb8e05790ca3652084681ca5b4a2761519bd384ccdbf9c475"},
+    {file = "prepdir-0.17.2.tar.gz", hash = "sha256:18ec2e7ba29fcf17ab7151ec2b5f5ff371f50f8b44e57537b5386effbde9207a"},
 ]
 
 [[package]]

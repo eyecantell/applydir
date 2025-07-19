@@ -1,5 +1,5 @@
-from typing import List, Dict, Union
 from difflib import SequenceMatcher
+from typing import List, Dict, Union, Optional
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from .applydir_file_change import ApplydirFileChange
 
