@@ -53,8 +53,8 @@ class ApplydirError(BaseModel):
     @field_validator("message")
     @classmethod
     def message_non_empty(cls, v: str) -> str:
-        if not v:
-            raise ValueError("Message cannot be empty")
+        if not v or not v.strip():
+            raise ValueError("Message cannot be empty or whitespace-only")
         return v
 
     @field_validator("details", mode="before")
