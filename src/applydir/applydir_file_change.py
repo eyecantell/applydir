@@ -3,7 +3,9 @@ from pathlib import Path
 from pydantic import BaseModel, field_validator, ValidationInfo, ConfigDict
 from dynaconf import Dynaconf
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
+import logging
 
+logger = logging.getLogger(__name__)
 
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
@@ -41,15 +43,27 @@ class ApplydirFileChange(BaseModel):
     def validate_change(self, config: Dynaconf = Dynaconf()) -> List[ApplydirError]:
         """Validates the change content."""
         errors = []
-        non_ascii_config = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore")
-        if non_ascii_config == "error":
+
+        if not self.file:
+            errors.append(
+                ApplydirError(
+                    change=self,
+                    error_type=ErrorType.FILE_PATH,
+                    severity=ErrorSeverity.ERROR,
+                    message="No file path specified",
+                )
+            )
+            
+        non_ascii_config = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()
+        logger.debug(f"non_ascii_config is {non_ascii_config}")
+        if non_ascii_config in ["error", "warning"]:
             for i, line in enumerate(self.changed_lines, 1):
                 if any(ord(char) > 127 for char in line):
                     errors.append(
                         ApplydirError(
                             change=self,
                             error_type=ErrorType.SYNTAX,
-                            severity=ErrorSeverity.ERROR,
+                            severity=ErrorSeverity.ERROR if non_ascii_config == "error" else ErrorSeverity.WARNING,
                             message="Non-ASCII characters found in changed_lines",
                             details={"line": line, "line_number": i},
                         )

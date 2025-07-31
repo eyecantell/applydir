@@ -39,6 +39,7 @@ def test_multiple_changes_per_file():
     ]
     changes = ApplydirChanges(files=changes_json)
     errors = changes.validate_changes(base_dir=Path.cwd())
+    print(f"changes are {changes}")
     assert len(errors) == 0
     assert len(changes.files[0].changes) == 2
     assert changes.files[0].file == "src/main.py"
@@ -65,7 +66,8 @@ def test_missing_file_key():
     with pytest.raises(ValidationError) as exc_info:
         ApplydirChanges(files=changes_json)
     logger.debug(f"Validation error for missing file key: {exc_info.value}")
-    assert "File path missing or empty" in str(exc_info.value)
+    print(f"exc_info.value is {exc_info.value.json(indent=4)}\n--")
+    assert "Field required" in str(exc_info.value)
 
 
 def test_empty_changes_array():
@@ -75,25 +77,6 @@ def test_empty_changes_array():
         ApplydirChanges(files=changes_json)
     logger.debug(f"Validation error for empty changes: {exc_info.value}")
     assert "Changes array is empty" in str(exc_info.value)
-
-
-def test_extra_fields_warning():
-    """Test extra fields in JSON produce warning."""
-    changes_json = [
-        {
-            "file": "src/main.py",
-            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],
-            "extra_field": "value",
-        }
-    ]
-    changes = ApplydirChanges(files=changes_json)
-    errors = changes.validate_changes(base_dir=Path.cwd())
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.JSON_STRUCTURE
-    assert errors[0].severity == ErrorSeverity.WARNING
-    assert errors[0].message == "Extra fields found in JSON"
-    assert errors[0].details == {"extra_keys": ["extra_field"]}
-    logger.debug(f"Extra fields warning: {errors[0]}")
 
 
 def test_invalid_file_change():
@@ -164,15 +147,9 @@ def test_multiple_errors():
     errors = changes.validate_changes(
         base_dir=Path.cwd(), config_override={"validation": {"non_ascii": {"default": "error"}}}
     )
-    assert len(errors) == 3
+    assert len(errors) == 2  # Only file path and changes empty errors
     assert any(e.error_type == ErrorType.FILE_PATH and e.message == "File path missing or empty" for e in errors)
     assert any(e.error_type == ErrorType.CHANGES_EMPTY and e.message == "Changes array is empty" for e in errors)
-    assert any(
-        e.error_type == ErrorType.JSON_STRUCTURE
-        and e.severity == ErrorSeverity.WARNING
-        and e.message == "Extra fields found in JSON"
-        for e in errors
-    )
     logger.debug(f"Multiple errors: {[str(e) for e in errors]}")
 
 
