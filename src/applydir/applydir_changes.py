@@ -77,7 +77,9 @@ class ApplydirChanges(BaseModel):
     def validate_changes(self, base_dir: str, config_override: Optional[Dict] = None) -> List[ApplydirError]:
         """Validates all file changes."""
         errors = []
-        config = Dynaconf(settings_files=[{"validation": {"non_ascii": {"default": "warning"}}}] if not config_override else [config_override], merge_enabled=True)
+        # Ensure config_override is applied correctly
+        config = Dynaconf(settings_files=[config_override or {}], merge_enabled=True)
+        logger.debug(f"Config used for validation: {config.to_dict()}")
         for file_entry in self.files:
             for change in file_entry.changes:
                 change_obj = ApplydirFileChange(

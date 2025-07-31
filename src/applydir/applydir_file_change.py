@@ -1,7 +1,6 @@
 from typing import List, Optional
 from pathlib import Path
 from pydantic import BaseModel, field_validator, ValidationInfo, ConfigDict
-from dynaconf import Dynaconf
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 import logging
 
@@ -40,9 +39,12 @@ class ApplydirFileChange(BaseModel):
             raise ValueError(f"Invalid file path: {str(e)}")
         return v
 
-    def validate_change(self, config: Dynaconf = Dynaconf()) -> List[ApplydirError]:
+    def validate_change(self, config: dict = None) -> List[ApplydirError]:
         """Validates the change content."""
         errors = []
+
+        if config is None:
+            config = {}
 
         if not self.file:
             errors.append(
