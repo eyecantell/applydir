@@ -8,14 +8,24 @@ from .applydir_matcher import ApplydirMatcher
 from .applydir_applicator import ApplydirApplicator
 from .applydir_error import ApplydirError
 
+
 def main():
     """CLI entry point for applydir utility."""
     parser = argparse.ArgumentParser(description="Applydir: Apply LLM-generated changes to a codebase.")
     parser.add_argument("input_file", type=str, help="Path to JSON file containing changes")
-    parser.add_argument("--base-dir", type=str, default=".", help="Base directory for file paths (default: current directory)")
+    parser.add_argument(
+        "--base-dir", type=str, default=".", help="Base directory for file paths (default: current directory)"
+    )
     parser.add_argument("--no-temp-files", action="store_true", help="Write changes directly to actual files")
-    parser.add_argument("--non-ascii-action", choices=["error", "warning", "ignore"], default=None, help="Action for non-ASCII characters")
-    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Logging level")
+    parser.add_argument(
+        "--non-ascii-action",
+        choices=["error", "warning", "ignore"],
+        default=None,
+        help="Action for non-ASCII characters",
+    )
+    parser.add_argument(
+        "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Logging level"
+    )
     args = parser.parse_args()
 
     # Set up logging
@@ -42,11 +52,7 @@ def main():
         changes = ApplydirChanges(files=changes_json)
         matcher = ApplydirMatcher(similarity_threshold=0.95)
         applicator = ApplydirApplicator(
-            base_dir=args.base_dir,
-            changes=changes,
-            matcher=matcher,
-            logger=logger,
-            config_override=config_override
+            base_dir=args.base_dir, changes=changes, matcher=matcher, logger=logger, config_override=config_override
         )
 
         # Validate and apply changes
@@ -55,7 +61,7 @@ def main():
             for error in errors:
                 logger.log(
                     logging.WARNING if error.severity == "warning" else logging.ERROR,
-                    f"{error.message}: {error.details}"
+                    f"{error.message}: {error.details}",
                 )
             return 1
 
@@ -64,7 +70,7 @@ def main():
             for error in errors:
                 logger.log(
                     logging.WARNING if error.severity == "warning" else logging.ERROR,
-                    f"{error.message}: {error.details}"
+                    f"{error.message}: {error.details}",
                 )
             return 1
 
@@ -73,6 +79,7 @@ def main():
     except Exception as e:
         logger.error(f"Application failed: {str(e)}")
         return 1
+
 
 if __name__ == "__main__":
     exit(main())

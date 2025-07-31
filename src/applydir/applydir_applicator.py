@@ -8,16 +8,27 @@ from pathlib import Path
 from prepdir import load_config
 from typing import List, Optional, Dict
 
+
 class ApplydirApplicator:
     """Applies validated changes to files."""
 
-    def __init__(self, base_dir: str, changes: ApplydirChanges, matcher: ApplydirMatcher, logger: logging.Logger, config_override: Optional[Dict] = None):
+    def __init__(
+        self,
+        base_dir: str,
+        changes: ApplydirChanges,
+        matcher: ApplydirMatcher,
+        logger: logging.Logger,
+        config_override: Optional[Dict] = None,
+    ):
         self.base_dir = Path(base_dir)
         self.changes = changes
         self.matcher = matcher
         self.logger = logger
         # Load default config and apply overrides
-        default_config = load_config(namespace="applydir") or {"use_temp_files": True, "validation": {"non_ascii": {"default": "warning", "rules": []}}}
+        default_config = load_config(namespace="applydir") or {
+            "use_temp_files": True,
+            "validation": {"non_ascii": {"default": "warning", "rules": []}},
+        }
         self.config = Dynaconf(settings_files=[default_config], merge_enabled=True)
         if config_override:
             self.config.update(config_override, merge=True)
@@ -36,7 +47,9 @@ class ApplydirApplicator:
     def apply_single_change(self, change: ApplydirFileChange) -> List[ApplydirError]:
         """Applies a single change to a file."""
         errors = []
-        file_path = self.temp_dir / change.file if self.config.get("use_temp_files", True) else self.base_dir / change.file
+        file_path = (
+            self.temp_dir / change.file if self.config.get("use_temp_files", True) else self.base_dir / change.file
+        )
         try:
             if change.original_lines:
                 # Existing file: Match and replace

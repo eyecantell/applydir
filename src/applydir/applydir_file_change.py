@@ -7,6 +7,7 @@ from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
+
     file: Optional[str] = None
     original_lines: List[str]
     changed_lines: List[str]

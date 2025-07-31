@@ -51,7 +51,7 @@ def test_error_with_file_change():
         file="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd()
+        base_dir=Path.cwd(),
     )
     error = ApplydirError(
         change=change,
@@ -74,7 +74,7 @@ def test_error_serialization():
         file="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd()
+        base_dir=Path.cwd(),
     )
     error = ApplydirError(
         change=change,
@@ -89,7 +89,7 @@ def test_error_serialization():
         "file": "src/main.py",
         "original_lines": ["print('Hello')"],
         "changed_lines": ["print('Hello World')"],
-        "base_dir": Path.cwd()
+        "base_dir": Path.cwd(),
     }
     assert error_dict["error_type"] == "syntax"
     assert error_dict["severity"] == "warning"
@@ -141,11 +141,7 @@ def test_invalid_message_empty():
     """Test that empty message raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
         ApplydirError(
-            change=None,
-            error_type=ErrorType.JSON_STRUCTURE,
-            severity=ErrorSeverity.ERROR,
-            message="",
-            details={}
+            change=None, error_type=ErrorType.JSON_STRUCTURE, severity=ErrorSeverity.ERROR, message="", details={}
         )
     logger.debug(f"Validation error for empty message: {exc_info.value}")
     assert "Message cannot be empty or whitespace-only" in str(exc_info.value)
@@ -155,11 +151,7 @@ def test_invalid_message_whitespace_only():
     """Test that whitespace-only message raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
         ApplydirError(
-            change=None,
-            error_type=ErrorType.JSON_STRUCTURE,
-            severity=ErrorSeverity.ERROR,
-            message="   ",
-            details={}
+            change=None, error_type=ErrorType.JSON_STRUCTURE, severity=ErrorSeverity.ERROR, message="   ", details={}
         )
     logger.debug(f"Validation error for whitespace-only message: {exc_info.value}")
     assert "Message cannot be empty or whitespace-only" in str(exc_info.value)
@@ -186,7 +178,7 @@ def test_invalid_details_type():
             error_type=ErrorType.JSON_STRUCTURE,
             severity=ErrorSeverity.ERROR,
             message="Test error",
-            details=["invalid"]  # Non-dict type
+            details=["invalid"],  # Non-dict type
         )
     logger.debug(f"Validation error for invalid details type: {exc_info.value}")
     assert "Input should be a valid dictionary" in str(exc_info.value)
@@ -197,14 +189,14 @@ def test_complex_details():
     complex_details = {
         "error": "Complex issue",
         "nested": {"line": 1, "column": 10, "details": {"code": "print('Hello')"}},
-        "list": [1, 2, 3]
+        "list": [1, 2, 3],
     }
     error = ApplydirError(
         change=None,
         error_type=ErrorType.SYNTAX,
         severity=ErrorSeverity.WARNING,
         message="Complex error",
-        details=complex_details
+        details=complex_details,
     )
     error_dict = error.model_dump()
     logger.debug(f"Serialized error with complex details: {error_dict}")
@@ -221,7 +213,7 @@ def test_error_str_representation():
         error_type=ErrorType.JSON_STRUCTURE,
         severity=ErrorSeverity.ERROR,
         message="Invalid JSON structure",
-        details={"error": "Missing files array"}
+        details={"error": "Missing files array"},
     )
     error_str = str(error)
     logger.debug(f"Error string representation: {error_str}")

@@ -7,6 +7,7 @@ from pathlib import Path
 
 class FileEntry(BaseModel):
     """Represents a single file entry with a file path and list of changes."""
+
     file: str
     changes: List[ApplydirFileChange]
 
@@ -84,7 +85,7 @@ class ApplydirChanges(BaseModel):
                     file=file_entry.file,
                     original_lines=change.original_lines,
                     changed_lines=change.changed_lines,
-                    base_dir=Path(base_dir)
+                    base_dir=Path(base_dir),
                 )
                 errors.extend(change_obj.validate_change())
         return errors
