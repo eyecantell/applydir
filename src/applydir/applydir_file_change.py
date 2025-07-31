@@ -53,17 +53,27 @@ class ApplydirFileChange(BaseModel):
                     message="No file path specified",
                 )
             )
-            
-        non_ascii_config = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()
-        logger.debug(f"non_ascii_config is {non_ascii_config}")
-        if non_ascii_config in ["error", "warning"]:
+
+        # Determine non-ASCII action based on file extension
+        non_ascii_action = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()
+        if self.file:
+            file_extension = Path(self.file).suffix.lower()
+            non_ascii_rules = config.get("validation", {}).get("non_ascii", {}).get("rules", [])
+            for rule in non_ascii_rules:
+                if file_extension in rule.get("extensions", []):
+                    non_ascii_action = rule.get("action", non_ascii_action).lower()
+                    break
+        logger.debug(f"Non-ASCII action for {self.file}: {non_ascii_action}")
+
+        # Apply non-ASCII validation if action is error or warning
+        if non_ascii_action in ["error", "warning"]:
             for i, line in enumerate(self.changed_lines, 1):
                 if any(ord(char) > 127 for char in line):
                     errors.append(
                         ApplydirError(
                             change=self,
                             error_type=ErrorType.SYNTAX,
-                            severity=ErrorSeverity.ERROR if non_ascii_config == "error" else ErrorSeverity.WARNING,
+                            severity=ErrorSeverity.ERROR if non_ascii_action == "error" else ErrorSeverity.WARNING,
                             message="Non-ASCII characters found in changed_lines",
                             details={"line": line, "line_number": i},
                         )

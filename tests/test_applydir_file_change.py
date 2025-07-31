@@ -10,6 +10,20 @@ from pydantic import ValidationError
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
 
+# Configuration matching config.yaml
+TEST_CONFIG = {
+    "validation": {
+        "non_ascii": {
+            "default": "warning",
+            "rules": [
+                {"extensions": [".py", ".js"], "action": "error"},
+                {"extensions": [".md", ".markdown"], "action": "ignore"},
+                {"extensions": [".json", ".yaml"], "action": "warning"},
+            ],
+        }
+    }
+}
+
 
 def test_valid_file_path():
     """Test valid file path within base_dir."""
@@ -116,3 +130,84 @@ def test_base_dir_storage():
     )
     assert change.base_dir == base_dir
     logger.debug(f"Base dir stored: {change.base_dir}")
+
+
+def test_non_ascii_py_file_error():
+    """Test non-ASCII characters in .py file generates ERROR."""
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello 😊')"],
+        base_dir=Path.cwd(),
+    )
+    errors = change.validate_change(config=TEST_CONFIG)
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.SYNTAX
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Non-ASCII characters found in changed_lines"
+    assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
+    logger.debug(f"Non-ASCII error for .py: {errors[0]}")
+
+
+def test_non_ascii_js_file_error():
+    """Test non-ASCII characters in .js file generates ERROR."""
+    change = ApplydirFileChange(
+        file="src/script.js",
+        original_lines=["console.log('Hello');"],
+        changed_lines=["console.log('Hello 😊');"],
+        base_dir=Path.cwd(),
+    )
+    errors = change.validate_change(config=TEST_CONFIG)
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.SYNTAX
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Non-ASCII characters found in changed_lines"
+    assert errors[0].details == {"line": "console.log('Hello 😊');", "line_number": 1}
+    logger.debug(f"Non-ASCII error for .js: {errors[0]}")
+
+
+def test_non_ascii_md_file_ignore():
+    """Test non-ASCII characters in .md file are ignored."""
+    change = ApplydirFileChange(
+        file="src/docs.md",
+        original_lines=["Hello"],
+        changed_lines=["Hello 😊"],
+        base_dir=Path.cwd(),
+    )
+    errors = change.validate_change(config=TEST_CONFIG)
+    assert len(errors) == 0
+    logger.debug("Non-ASCII ignored for .md")
+
+
+def test_non_ascii_json_file_warning():
+    """Test non-ASCII characters in .json file generates WARNING."""
+    change = ApplydirFileChange(
+        file="src/config.json",
+        original_lines=['{"key": "value"}'],
+        changed_lines=['{"key": "value 😊"}'],
+        base_dir=Path.cwd(),
+    )
+    errors = change.validate_change(config=TEST_CONFIG)
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.SYNTAX
+    assert errors[0].severity == ErrorSeverity.WARNING
+    assert errors[0].message == "Non-ASCII characters found in changed_lines"
+    assert errors[0].details == {"line": '{"key": "value 😊"}', "line_number": 1}
+    logger.debug(f"Non-ASCII warning for .json: {errors[0]}")
+
+
+def test_non_ascii_default_action():
+    """Test non-ASCII characters in unlisted extension (.txt) uses default WARNING."""
+    change = ApplydirFileChange(
+        file="src/notes.txt",
+        original_lines=["Hello"],
+        changed_lines=["Hello 😊"],
+        base_dir=Path.cwd(),
+    )
+    errors = change.validate_change(config=TEST_CONFIG)
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.SYNTAX
+    assert errors[0].severity == ErrorSeverity.WARNING
+    assert errors[0].message == "Non-ASCII characters found in changed_lines"
+    assert errors[0].details == {"line": "Hello 😊", "line_number": 1}
+    logger.debug(f"Non-ASCII default warning for .txt: {errors[0]}")
