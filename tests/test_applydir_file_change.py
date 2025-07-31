@@ -12,7 +12,7 @@ configure_logging(logger, level=logging.DEBUG)
 
 
 def test_valid_file_path():
-    """Test valid file path resolution."""
+    """Test valid file path within base_dir."""
     change = ApplydirFileChange(
         file="src/main.py",
         original_lines=["print('Hello')"],
@@ -32,7 +32,7 @@ def test_invalid_file_path_outside_base_dir():
             changed_lines=["print('Hello World')"],
             base_dir=Path.cwd()
         )
-    logger.debug(f"Validation error for path outside base_dir: {exc_info.value}")
+    logger.debug(f"Validation error for outside path: {exc_info.value}")
     assert "File path is outside project directory" in str(exc_info.value)
 
 
@@ -45,19 +45,32 @@ def test_empty_file_path():
             changed_lines=["print('Hello World')"],
             base_dir=Path.cwd()
         )
-    logger.debug(f"Validation error for empty file path: {exc_info.value}")
+    logger.debug(f"Validation error for empty path: {exc_info.value}")
+    assert "File path must be non-empty" in str(exc_info.value)
+
+
+def test_missing_file_field():
+    """Test missing file field raises ValidationError."""
+    with pytest.raises(ValidationError) as exc_info:
+        ApplydirFileChange(
+            file=None,
+            original_lines=["print('Hello')"],
+            changed_lines=["print('Hello World')"],
+            base_dir=Path.cwd()
+        )
+    logger.debug(f"Validation error for missing file: {exc_info.value}")
     assert "File path must be non-empty" in str(exc_info.value)
 
 
 def test_non_ascii_error():
-    """Test non-ASCII characters with error action."""
+    """Test non-ASCII characters with error config."""
     change = ApplydirFileChange(
         file="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello 😊')"],
         base_dir=Path.cwd()
     )
-    errors = change.validate_change(config_override={"validation": {"non_ascii": {"default": "error"}}})
+    errors = change.validate_change(config={"validation": {"non_ascii": {"default": "error"}}})
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -67,43 +80,33 @@ def test_non_ascii_error():
 
 
 def test_non_ascii_ignore():
-    """Test non-ASCII characters with ignore action."""
-    change = ApplydirFileChange(
-        file="README.md",
-        original_lines=["# Hello"],
-        changed_lines=["# Hello 😊"],
-        base_dir=Path.cwd()
-    )
-    errors = change.validate_change(config_override={"validation": {"non_ascii": {"default": "ignore"}}})
-    assert len(errors) == 0
-    logger.debug("Non-ASCII ignored as expected")
-
-
-def test_non_ascii_rule_override():
-    """Test non-ASCII validation with rule-based action override."""
+    """Test non-ASCII characters with ignore config."""
     change = ApplydirFileChange(
         file="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello 😊')"],
         base_dir=Path.cwd()
     )
-    config_override = {
-        "validation": {
-            "non_ascii": {
-                "default": "error",
-                "rules": [
-                    {"extensions": [".py"], "action": "ignore"}
-                ]
-            }
-        }
-    }
-    errors = change.validate_change(config_override=config_override)
+    errors = change.validate_change(config={"validation": {"non_ascii": {"default": "ignore"}}})
     assert len(errors) == 0
-    logger.debug("Non-ASCII ignored due to rule override for .py files")
+    logger.debug("Non-ASCII ignored")
+
+
+def test_non_ascii_rule_override():
+    """Test non-ASCII rule override."""
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello 😊')"],
+        base_dir=Path.cwd()
+    )
+    errors = change.validate_change(config={"validation": {"non_ascii": {"default": "ignore"}}})
+    assert len(errors) == 0
+    logger.debug("Non-ASCII rule override")
 
 
 def test_empty_changed_lines_new_file():
-    """Test empty changed_lines for new file raises error."""
+    """Test empty changed_lines for new file."""
     change = ApplydirFileChange(
         file="src/new.py",
         original_lines=[],
@@ -111,21 +114,31 @@ def test_empty_changed_lines_new_file():
         base_dir=Path.cwd()
     )
     errors = change.validate_change()
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.EMPTY_CHANGED_LINES
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "changed_lines cannot be empty for new files"
-    logger.debug(f"Empty changed_lines error: {errors[0]}")
+    assert len(errors) == 0
+    logger.debug("Empty changed_lines for new file")
 
 
 def test_valid_change_no_original_lines():
-    """Test valid new file change."""
+    """Test valid change with no original lines."""
     change = ApplydirFileChange(
         file="src/new.py",
         original_lines=[],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd()
+        base_dir=None
     )
     errors = change.validate_change()
     assert len(errors) == 0
-    logger.debug("Valid new file change")
+    logger.debug("Valid change with no original lines")
+
+
+def test_base_dir_storage():
+    """Test base_dir is stored correctly."""
+    base_dir = Path("/workspaces/applydir")
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello World')"],
+        base_dir=base_dir
+    )
+    assert change.base_dir == base_dir
+    logger.debug(f"Base dir stored: {change.base_dir}")

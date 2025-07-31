@@ -27,8 +27,8 @@
                 "be5invis.toml"
             ],
             "settings": {
-                "python.defaultInterpreterPath": "/usr/local/bin/python",
-                "python.pythonPath": "/usr/local/bin/python"
+                "python.defaultInterpreterPath": "/mounted/dev/applydir/.venv/bin/python",
+                "python.pythonPath": "/mounted/dev/applydir/.venv/bin/python"
             }
         }
     }

@@ -89,6 +89,7 @@ def test_error_serialization():
         "file": "src/main.py",
         "original_lines": ["print('Hello')"],
         "changed_lines": ["print('Hello World')"],
+        "base_dir": Path.cwd()
     }
     assert error_dict["error_type"] == "syntax"
     assert error_dict["severity"] == "warning"

@@ -31,6 +31,37 @@ def test_valid_changes():
     logger.debug(f"Valid changes: {changes}")
 
 
+def test_multiple_changes_per_file():
+    """Test valid JSON input with multiple changes for a single file."""
+    changes_json = [
+        {
+            "file": "src/main.py",
+            "changes": [
+                {
+                    "original_lines": ["print('Hello')"],
+                    "changed_lines": ["print('Hello World')"]
+                },
+                {
+                    "original_lines": ["print('Another change')"],
+                    "changed_lines": ["print('Good change!')"]
+                }
+            ]
+        }
+    ]
+    changes = ApplydirChanges(files=changes_json)
+    errors = changes.validate_changes(base_dir=Path.cwd())
+    assert len(errors) == 0
+    assert len(changes.files[0].changes) == 2
+    assert changes.files[0].file == "src/main.py"
+    assert changes.files[0].changes[0].file == "src/main.py"
+    assert changes.files[0].changes[0].original_lines == ["print('Hello')"]
+    assert changes.files[0].changes[0].changed_lines == ["print('Hello World')"]
+    assert changes.files[0].changes[1].file == "src/main.py"
+    assert changes.files[0].changes[1].original_lines == ["print('Another change')"]
+    assert changes.files[0].changes[1].changed_lines == ["print('Good change!')"]
+    logger.debug(f"Multiple changes: {changes}")
+
+
 def test_empty_files_array():
     """Test empty files array raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -151,7 +182,7 @@ def test_empty_file_entry():
     with pytest.raises(ValidationError) as exc_info:
         ApplydirChanges(files=changes_json)
     logger.debug(f"Validation error for empty file entry: {exc_info.value}")
-    assert "File path missing or empty" in str(exc_info.value)
+    assert "Field required" in str(exc_info.value)
 
 
 def test_multiple_errors():

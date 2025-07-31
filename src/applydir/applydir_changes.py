@@ -1,19 +1,26 @@
-from typing import List, Dict, Union
+from typing import List
 from pydantic import BaseModel, field_validator, ConfigDict
 from .applydir_file_change import ApplydirFileChange
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
+from pathlib import Path
+
+
+class FileEntry(BaseModel):
+    """Represents a single file entry with a file path and list of changes."""
+    file: str
+    changes: List[ApplydirFileChange]
 
 
 class ApplydirChanges(BaseModel):
     """Parses and validates JSON input for applydir changes."""
 
-    files: List[Dict[str, Union[str, List[ApplydirFileChange]]]]
+    files: List[FileEntry]
 
     model_config = ConfigDict(extra="allow")  # Allow extra fields in JSON
 
     @field_validator("files")
     @classmethod
-    def validate_files(cls, v: List[Dict]) -> List[Dict]:
+    def validate_files(cls, v: List[FileEntry]) -> List[FileEntry]:
         """Validates JSON structure and file entries."""
         errors = []
         if not v:
@@ -31,7 +38,7 @@ class ApplydirChanges(BaseModel):
         for file_entry in v:
             # Check for extra fields and add warning
             expected_keys = {"file", "changes"}
-            extra_keys = set(file_entry.keys()) - expected_keys
+            extra_keys = set(file_entry.model_dump().keys()) - expected_keys
             if extra_keys:
                 errors.append(
                     ApplydirError(
@@ -43,7 +50,7 @@ class ApplydirChanges(BaseModel):
                     )
                 )
 
-            if not file_entry.get("file"):
+            if not file_entry.file:
                 errors.append(
                     ApplydirError(
                         change=None,
@@ -53,14 +60,14 @@ class ApplydirChanges(BaseModel):
                         details={},
                     )
                 )
-            if not file_entry.get("changes"):
+            if not file_entry.changes:
                 errors.append(
                     ApplydirError(
                         change=None,
                         error_type=ErrorType.CHANGES_EMPTY,
                         severity=ErrorSeverity.ERROR,
                         message="Changes array is empty",
-                        details={"file": file_entry.get("file", "")},
+                        details={"file": file_entry.file},
                     )
                 )
 
@@ -72,7 +79,12 @@ class ApplydirChanges(BaseModel):
         """Validates all file changes."""
         errors = []
         for file_entry in self.files:
-            for change in file_entry["changes"]:
-                change_obj = ApplydirFileChange(file=file_entry["file"], **change.dict())
-                errors.extend(change_obj.validate_change(base_dir=base_dir))
+            for change in file_entry.changes:
+                change_obj = ApplydirFileChange(
+                    file=file_entry.file,
+                    original_lines=change.original_lines,
+                    changed_lines=change.changed_lines,
+                    base_dir=Path(base_dir)
+                )
+                errors.extend(change_obj.validate_change())
         return errors
