@@ -11,7 +11,7 @@ logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
 
 # Configuration matching config.yaml
-TEST_CONFIG = {
+TEST_ASCII_CONFIG = {
     "validation": {
         "non_ascii": {
             "default": "warning",
@@ -140,7 +140,7 @@ def test_non_ascii_py_file_error():
         changed_lines=["print('Hello 😊')"],
         base_dir=Path.cwd(),
     )
-    errors = change.validate_change(config=TEST_CONFIG)
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -157,7 +157,7 @@ def test_non_ascii_js_file_error():
         changed_lines=["console.log('Hello 😊');"],
         base_dir=Path.cwd(),
     )
-    errors = change.validate_change(config=TEST_CONFIG)
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -174,7 +174,7 @@ def test_non_ascii_md_file_ignore():
         changed_lines=["Hello 😊"],
         base_dir=Path.cwd(),
     )
-    errors = change.validate_change(config=TEST_CONFIG)
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
     assert len(errors) == 0
     logger.debug("Non-ASCII ignored for .md")
 
@@ -187,7 +187,7 @@ def test_non_ascii_json_file_warning():
         changed_lines=['{"key": "value 😊"}'],
         base_dir=Path.cwd(),
     )
-    errors = change.validate_change(config=TEST_CONFIG)
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.WARNING
@@ -204,7 +204,7 @@ def test_non_ascii_default_action():
         changed_lines=["Hello 😊"],
         base_dir=Path.cwd(),
     )
-    errors = change.validate_change(config=TEST_CONFIG)
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.WARNING
