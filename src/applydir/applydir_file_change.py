@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pathlib import Path
 from pydantic import BaseModel, field_validator, ValidationInfo, ConfigDict
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
@@ -39,7 +39,7 @@ class ApplydirFileChange(BaseModel):
             raise ValueError(f"Invalid file path: {str(e)}")
         return v
 
-    def validate_change(self, config: dict = None) -> List[ApplydirError]:
+    def validate_change(self, config: Dict = None) -> List[ApplydirError]:
         """Validates the change content."""
         errors = []
 

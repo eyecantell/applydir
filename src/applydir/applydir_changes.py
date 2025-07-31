@@ -4,7 +4,6 @@ from pydantic import BaseModel, field_validator, ConfigDict
 from .applydir_file_change import ApplydirFileChange
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from pathlib import Path
-from dynaconf import Dynaconf
 
 # Set up logger
 logger = logging.getLogger("applydir")
@@ -77,9 +76,9 @@ class ApplydirChanges(BaseModel):
     def validate_changes(self, base_dir: str, config_override: Optional[Dict] = None) -> List[ApplydirError]:
         """Validates all file changes."""
         errors = []
-        # Ensure config_override is applied correctly
-        config = Dynaconf(settings_files=[config_override or {}], merge_enabled=True)
-        logger.debug(f"Config used for validation: {config.to_dict()}")
+        # Use config_override directly as a dict
+        config = config_override or {}
+        logger.debug(f"Config used for validation: {config}")
         for file_entry in self.files:
             for change in file_entry.changes:
                 change_obj = ApplydirFileChange(

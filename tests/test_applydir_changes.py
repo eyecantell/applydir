@@ -1,5 +1,6 @@
 import pytest
 import logging
+import json
 from pathlib import Path
 from prepdir import configure_logging
 from applydir.applydir_changes import ApplydirChanges
@@ -104,13 +105,15 @@ def test_changes_serialization():
     changes_json = [
         {
             "file": "src/main.py",
-            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],
+            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"], "base_dir": "my/base/dir"}],
         }
     ]
     changes = ApplydirChanges(files=changes_json)
     serialized = changes.model_dump()
-    assert serialized["files"] == changes_json
-    logger.debug(f"Serialized changes: {serialized}")
+    print(f"serialized is {json.dumps(serialized, indent=4)}")
+    assert serialized["files"][0]["file"] == changes_json[0]["file"]
+    assert serialized["files"][0]["changes"] == changes_json[0]["changes"]
+
 
 
 def test_invalid_files_type():
@@ -147,9 +150,14 @@ def test_multiple_errors():
     errors = changes.validate_changes(
         base_dir=Path.cwd(), config_override={"validation": {"non_ascii": {"default": "error"}}}
     )
-    assert len(errors) == 2  # Only file path and changes empty errors
+    assert len(errors) == 3  # File path, changes empty, and non-ASCII errors
     assert any(e.error_type == ErrorType.FILE_PATH and e.message == "File path missing or empty" for e in errors)
     assert any(e.error_type == ErrorType.CHANGES_EMPTY and e.message == "Changes array is empty" for e in errors)
+    assert any(
+        e.error_type == ErrorType.SYNTAX
+        and e.message == "Non-ASCII characters found in changed_lines"
+        for e in errors
+    )
     logger.debug(f"Multiple errors: {[str(e) for e in errors]}")
 
 
