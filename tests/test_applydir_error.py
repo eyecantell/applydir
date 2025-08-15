@@ -11,6 +11,7 @@ from pydantic import ValidationError
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
 
+
 def test_error_creation_all_types():
     """Test creating ApplydirError for all ErrorType values with ERROR severity."""
     for error_type in ErrorType:
@@ -28,6 +29,7 @@ def test_error_creation_all_types():
         assert error.details == {"test": "value"}
         assert error.change is None
 
+
 def test_error_creation_warning_severity():
     """Test creating ApplydirError with WARNING severity."""
     error = ApplydirError(
@@ -42,6 +44,7 @@ def test_error_creation_warning_severity():
     assert error.severity == ErrorSeverity.WARNING
     assert error.message == "Non-ASCII characters found"
     assert error.details == {"line": "print('Hello World')", "line_number": 1}
+
 
 def test_error_with_file_change():
     """Test ApplydirError with an ApplydirFileChange."""
@@ -65,6 +68,7 @@ def test_error_with_file_change():
     assert error.severity == ErrorSeverity.WARNING
     assert error.message == "Non-ASCII characters found"
     assert error.details == {"line": "print('Hello World')", "line_number": 1}
+
 
 def test_error_serialization():
     """Test JSON serialization of ApplydirError."""
@@ -96,6 +100,7 @@ def test_error_serialization():
     assert error_dict["message"] == "Non-ASCII characters found"
     assert error_dict["details"] == {"line": "print('Hello World')", "line_number": 1}
 
+
 def test_error_serialization_none_change():
     """Test JSON serialization with explicit None for change."""
     error = ApplydirError(
@@ -113,6 +118,7 @@ def test_error_serialization_none_change():
     assert error_dict["message"] == "Invalid JSON structure"
     assert error_dict["details"] == {"error": "Missing files array"}
 
+
 def test_default_severity():
     """Test default severity is ERROR."""
     error = ApplydirError(
@@ -123,6 +129,7 @@ def test_default_severity():
     )
     logger.debug(f"Created error with default severity: {error}")
     assert error.severity == ErrorSeverity.ERROR
+
 
 def test_invalid_message_empty():
     """Test that empty message raises ValidationError."""
@@ -137,6 +144,7 @@ def test_invalid_message_empty():
     logger.debug(f"Validation error for empty message: {exc_info.value}")
     assert "Message cannot be empty or whitespace-only" in str(exc_info.value)
 
+
 def test_invalid_message_whitespace_only():
     """Test that whitespace-only message raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -150,6 +158,7 @@ def test_invalid_message_whitespace_only():
     logger.debug(f"Validation error for whitespace-only message: {exc_info.value}")
     assert "Message cannot be empty or whitespace-only" in str(exc_info.value)
 
+
 def test_details_default():
     """Test that details defaults to empty dict if None."""
     error = ApplydirError(
@@ -161,6 +170,7 @@ def test_details_default():
     )
     logger.debug(f"Error with None details: {error}")
     assert error.details == {}
+
 
 def test_invalid_details_type():
     """Test that non-dict details raises ValidationError."""
@@ -174,6 +184,7 @@ def test_invalid_details_type():
         )
     logger.debug(f"Validation error for invalid details type: {exc_info.value}")
     assert "Input should be a valid dictionary" in str(exc_info.value)
+
 
 def test_complex_details():
     """Test serialization with complex nested details dictionary."""
@@ -196,6 +207,7 @@ def test_complex_details():
     assert error_dict["error_type"] == "syntax"
     assert error_dict["severity"] == "warning"
 
+
 def test_error_str_representation():
     """Test string representation of ApplydirError."""
     error = ApplydirError(
@@ -212,6 +224,7 @@ def test_error_str_representation():
     assert "error" in error_str
     assert "Missing files array" in error_str
 
+
 def test_invalid_error_type():
     """Test that invalid error_type raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -225,6 +238,7 @@ def test_invalid_error_type():
     logger.debug(f"Validation error for invalid error_type: {exc_info.value}")
     assert "Input should be 'json_structure'" in str(exc_info.value)
 
+
 def test_invalid_severity():
     """Test that invalid severity raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -237,6 +251,7 @@ def test_invalid_severity():
         )
     logger.debug(f"Validation error for invalid severity: {exc_info.value}")
     assert "Input should be 'error' or 'warning'" in str(exc_info.value)
+
 
 def test_no_match_error():
     """Test ApplydirError creation for NO_MATCH with ApplydirMatcher."""
@@ -260,6 +275,7 @@ def test_no_match_error():
     assert error.details == {"file": "src/main.py"}
     assert error.change == change
 
+
 def test_multiple_matches_error():
     """Test ApplydirError creation for MULTIPLE_MATCHES with ApplydirMatcher."""
     change = ApplydirFileChange(
@@ -281,6 +297,7 @@ def test_multiple_matches_error():
     assert error.message == "Multiple matches found for original_lines"
     assert error.details == {"file": "src/main.py", "match_count": 2}
     assert error.change == change
+
 
 def test_error_type_str_representation():
     """Test string representation of ErrorType values."""

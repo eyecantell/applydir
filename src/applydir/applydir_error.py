@@ -2,15 +2,18 @@ from typing import Optional, Dict, ClassVar
 from pydantic import BaseModel, field_validator, ConfigDict, field_serializer
 from enum import Enum
 
+
 class ErrorSeverity(str, Enum):
     ERROR = "error"
     WARNING = "warning"
+
 
 class ErrorType(str, Enum):
     JSON_STRUCTURE = "json_structure"
     FILE_PATH = "file_path"
     CHANGES_EMPTY = "changes_empty"
     ORIG_LINES_NOT_EMPTY = "orig_lines_not_empty"
+    ORIG_LINES_EMPTY = "orig_lines_empty"
     SYNTAX = "syntax"
     EMPTY_CHANGED_LINES = "empty_changed_lines"
     NO_MATCH = "no_match"
@@ -25,6 +28,7 @@ class ErrorType(str, Enum):
             ErrorType.FILE_PATH: "Invalid file path",
             ErrorType.CHANGES_EMPTY: "Empty changes array for replace_lines or create_file",
             ErrorType.ORIG_LINES_NOT_EMPTY: "Non-empty original_lines not allowed for create_file",
+            ErrorType.ORIG_LINES_EMPTY: "Empty original_lines not allowed for replace_lines",
             ErrorType.SYNTAX: "Invalid syntax in changed_lines",
             ErrorType.EMPTY_CHANGED_LINES: "Empty changed_lines for replace_lines or create_file",
             ErrorType.NO_MATCH: "No matching lines found in file",
@@ -33,6 +37,7 @@ class ErrorType(str, Enum):
             ErrorType.LINTING: "Linting failed on file (handled by vibedir)",
             ErrorType.CONFIGURATION: "Invalid configuration",
         }[self]
+
 
 class ApplydirError(BaseModel):
     change: Optional["ApplydirFileChange"] = None  # Forward reference

@@ -7,9 +7,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ActionType(str, Enum):
     REPLACE_LINES = "replace_lines"
     CREATE_FILE = "create_file"
+
 
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
