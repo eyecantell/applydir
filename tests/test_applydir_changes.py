@@ -105,14 +105,16 @@ def test_changes_serialization():
     changes_json = [
         {
             "file": "src/main.py",
-            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"], "base_dir": "my/base/dir"}],
+            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],
         }
     ]
     changes = ApplydirChanges(files=changes_json)
     serialized = changes.model_dump()
     print(f"serialized is {json.dumps(serialized, indent=4)}")
     assert serialized["files"][0]["file"] == changes_json[0]["file"]
-    assert serialized["files"][0]["changes"] == changes_json[0]["changes"]
+    assert serialized["files"][0]["changes"][0]["original_lines"] == changes_json[0]["changes"][0]["original_lines"]
+    assert serialized["files"][0]["changes"][0]["changed_lines"] == changes_json[0]["changes"][0]["changed_lines"]
+    assert serialized["files"][0]["changes"][0]["base_dir"] == None
 
 
 
@@ -137,7 +139,7 @@ def test_multiple_errors():
     """Test multiple validation errors in one JSON input."""
     changes_json = [
         {
-            "file": "",  # Invalid file path
+            "file": "/invalid/path",  # Invalid file path
             "changes": [],
         },
         {
@@ -146,10 +148,14 @@ def test_multiple_errors():
             "extra_field": "value",
         },
     ]
-    changes = ApplydirChanges(files=changes_json)
+    with pytest.raises(ValidationError) as exc_info:
+        changes = ApplydirChanges(files=changes_json)
+        
+    print(f"exc_info is {exc_info}")
     errors = changes.validate_changes(
         base_dir=Path.cwd(), config_override={"validation": {"non_ascii": {"default": "error"}}}
     )
+    print(f"errors is {json.dumps(errors, indent=4)}")
     assert len(errors) == 3  # File path, changes empty, and non-ASCII errors
     assert any(e.error_type == ErrorType.FILE_PATH and e.message == "File path missing or empty" for e in errors)
     assert any(e.error_type == ErrorType.CHANGES_EMPTY and e.message == "Changes array is empty" for e in errors)

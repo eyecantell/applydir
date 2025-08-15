@@ -51,11 +51,11 @@ The LLM returns a JSON array of file objects:
   - `changes`: Array of change objects for `"replace_lines"` or `"create_file"`.
 - **Change Object**:
   - `original_lines`: ≥5 lines (configurable, min 3) for existing files, empty for `"create_file"`.
-  - `changed_lines`: New lines for replacements or full content for new files.
+  - `changed_lines`: Modified lines for replacements or full content for new files.
 
 ### Example Cases
 - **Modification**: `"replace_lines"` in `src/main.py`, replacing 5 lines (e.g., a function) with a modified version.
-- **Addition**: `"replace_lines"` in `src/main.py`, replacing 5 lines with additional lines (e.g., new function).
+- **Addition**: `"replace_lines"` in `src/main.py`, replacing 5 lines with lines that include additional lines (e.g., new function).
 - **Deletion**: `"replace_lines"` in `src/main.py`, replacing 5 lines with a subset.
 - **Creation**: `"create_file"` for `src/new_menu.py`, with empty `original_lines` and full `changed_lines`.
 - **File Deletion**: `"delete_file"` for `src/old_file.py`, no `changes`.

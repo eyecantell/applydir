@@ -13,8 +13,7 @@
         {
             "source": "${localEnv:HOME}${localEnv:USERPROFILE}/stuff_for_containers_home",
             "target": "/mounted/stuff_for_containers_home",
-            "type": "bind",
-            "consistency": "cached"
+            "type": "bind"
         }
     ],
     "postCreateCommand": "cd /mounted/dev/applydir && pdm install -G test -G dev",
