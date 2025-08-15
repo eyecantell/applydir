@@ -6,7 +6,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
 
@@ -15,7 +14,11 @@ class ApplydirFileChange(BaseModel):
     changed_lines: List[str]
     base_dir: Optional[Path] = None
 
-    model_config = ConfigDict(extra="forbid")  # Disallow extra fields
+    model_config = ConfigDict(
+        extra="forbid",  # Disallow extra fields
+        arbitrary_types_allowed=True,  # Allow Path objects
+        json_encoders={Path: str},  # Serialize Path as string
+    )
 
     @field_validator("file")
     @classmethod

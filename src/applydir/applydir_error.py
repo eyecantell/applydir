@@ -1,12 +1,11 @@
 from typing import Optional, Dict, ClassVar
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, ConfigDict
 from enum import Enum
-
+from pathlib import Path
 
 class ErrorSeverity(str, Enum):
     ERROR = "error"
     WARNING = "warning"
-
 
 class ErrorType(str, Enum):
     JSON_STRUCTURE = "json_structure"
@@ -34,13 +33,17 @@ class ErrorType(str, Enum):
             ErrorType.CONFIGURATION: "Invalid configuration",
         }[self]
 
-
 class ApplydirError(BaseModel):
     change: Optional["ApplydirFileChange"] = None  # Forward reference
     error_type: ErrorType
     severity: ErrorSeverity = ErrorSeverity.ERROR
     message: str
     details: Optional[Dict] = None
+
+    model_config = ConfigDict(
+        json_encoders={Path: str},  # Serialize Path as string
+        arbitrary_types_allowed=True,  # Allow Path objects in nested models
+    )
 
     @field_validator("message")
     @classmethod

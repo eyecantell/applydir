@@ -4,12 +4,12 @@ from pathlib import Path
 from prepdir import configure_logging
 from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from applydir.applydir_file_change import ApplydirFileChange
+from applydir.applydir_matcher import ApplydirMatcher
 from pydantic import ValidationError
 
 # Set up logging for tests
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
-
 
 def test_error_creation_all_types():
     """Test creating ApplydirError for all ErrorType values with ERROR severity."""
@@ -28,7 +28,6 @@ def test_error_creation_all_types():
         assert error.details == {"test": "value"}
         assert error.change is None
 
-
 def test_error_creation_warning_severity():
     """Test creating ApplydirError with WARNING severity."""
     error = ApplydirError(
@@ -43,7 +42,6 @@ def test_error_creation_warning_severity():
     assert error.severity == ErrorSeverity.WARNING
     assert error.message == "Non-ASCII characters found"
     assert error.details == {"line": "print('Hello World')", "line_number": 1}
-
 
 def test_error_with_file_change():
     """Test ApplydirError with an ApplydirFileChange."""
@@ -67,7 +65,6 @@ def test_error_with_file_change():
     assert error.message == "Non-ASCII characters found"
     assert error.details == {"line": "print('Hello World')", "line_number": 1}
 
-
 def test_error_serialization():
     """Test JSON serialization of ApplydirError."""
     change = ApplydirFileChange(
@@ -83,20 +80,18 @@ def test_error_serialization():
         message="Non-ASCII characters found",
         details={"line": "print('Hello World')", "line_number": 1},
     )
-    error_dict = error.model_dump()
+    error_dict = error.model_dump(mode="json")  # Use mode="json" for JSON-compatible serialization
     logger.debug(f"Serialized error: {error_dict}")
     assert error_dict["change"] == {
         "file": "src/main.py",
         "original_lines": ["print('Hello')"],
         "changed_lines": ["print('Hello World')"],
-        "base_dir": Path.cwd(),
+        "base_dir": str(Path.cwd()),  # Ensure base_dir is a string
     }
     assert error_dict["error_type"] == "syntax"
     assert error_dict["severity"] == "warning"
     assert error_dict["message"] == "Non-ASCII characters found"
     assert error_dict["details"] == {"line": "print('Hello World')", "line_number": 1}
-    assert "ERROR_DESCRIPTIONS" not in error_dict  # ClassVar not serialized
-
 
 def test_error_serialization_none_change():
     """Test JSON serialization with explicit None for change."""
@@ -107,23 +102,13 @@ def test_error_serialization_none_change():
         message="Invalid JSON structure",
         details={"error": "Missing files array"},
     )
-    error_dict = error.model_dump()
+    error_dict = error.model_dump(mode="json")  # Use mode="json" for consistency
     logger.debug(f"Serialized error with None change: {error_dict}")
     assert error_dict["change"] is None
     assert error_dict["error_type"] == "json_structure"
     assert error_dict["severity"] == "error"
     assert error_dict["message"] == "Invalid JSON structure"
     assert error_dict["details"] == {"error": "Missing files array"}
-    assert "ERROR_DESCRIPTIONS" not in error_dict
-
-
-def test_error_descriptions():
-    """Test ERROR_DESCRIPTIONS mapping for all ErrorType values."""
-    for error_type in ErrorType:
-        assert error_type in ApplydirError.ERROR_DESCRIPTIONS
-        assert isinstance(ApplydirError.ERROR_DESCRIPTIONS[error_type], str)
-        logger.debug(f"Error description for {error_type}: {ApplydirError.ERROR_DESCRIPTIONS[error_type]}")
-
 
 def test_default_severity():
     """Test default severity is ERROR."""
@@ -136,7 +121,6 @@ def test_default_severity():
     logger.debug(f"Created error with default severity: {error}")
     assert error.severity == ErrorSeverity.ERROR
 
-
 def test_invalid_message_empty():
     """Test that empty message raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -146,7 +130,6 @@ def test_invalid_message_empty():
     logger.debug(f"Validation error for empty message: {exc_info.value}")
     assert "Message cannot be empty or whitespace-only" in str(exc_info.value)
 
-
 def test_invalid_message_whitespace_only():
     """Test that whitespace-only message raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -155,7 +138,6 @@ def test_invalid_message_whitespace_only():
         )
     logger.debug(f"Validation error for whitespace-only message: {exc_info.value}")
     assert "Message cannot be empty or whitespace-only" in str(exc_info.value)
-
 
 def test_details_default():
     """Test that details defaults to empty dict if None."""
@@ -169,7 +151,6 @@ def test_details_default():
     logger.debug(f"Error with None details: {error}")
     assert error.details == {}
 
-
 def test_invalid_details_type():
     """Test that non-dict details raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -182,7 +163,6 @@ def test_invalid_details_type():
         )
     logger.debug(f"Validation error for invalid details type: {exc_info.value}")
     assert "Input should be a valid dictionary" in str(exc_info.value)
-
 
 def test_complex_details():
     """Test serialization with complex nested details dictionary."""
@@ -198,13 +178,12 @@ def test_complex_details():
         message="Complex error",
         details=complex_details,
     )
-    error_dict = error.model_dump()
+    error_dict = error.model_dump(mode="json")  # Use mode="json" for consistency
     logger.debug(f"Serialized error with complex details: {error_dict}")
     assert error_dict["details"] == complex_details
     assert error_dict["message"] == "Complex error"
     assert error_dict["error_type"] == "syntax"
     assert error_dict["severity"] == "warning"
-
 
 def test_error_str_representation():
     """Test string representation of ApplydirError."""
@@ -222,7 +201,6 @@ def test_error_str_representation():
     assert "error" in error_str
     assert "Missing files array" in error_str
 
-
 def test_invalid_error_type():
     """Test that invalid error_type raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -236,7 +214,6 @@ def test_invalid_error_type():
     logger.debug(f"Validation error for invalid error_type: {exc_info.value}")
     assert "Input should be 'json_structure'" in str(exc_info.value)
 
-
 def test_invalid_severity():
     """Test that invalid severity raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -249,3 +226,58 @@ def test_invalid_severity():
         )
     logger.debug(f"Validation error for invalid severity: {exc_info.value}")
     assert "Input should be 'error' or 'warning'" in str(exc_info.value)
+
+def test_no_match_error():
+    """Test ApplydirError creation for NO_MATCH with ApplydirMatcher."""
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Unique')"],
+        changed_lines=["print('Modified')"],
+        base_dir=Path.cwd(),
+    )
+    matcher = ApplydirMatcher(similarity_threshold=0.95)
+    file_content = ["print('Different')", "print('Other')"]
+    result = matcher.match(file_content, change)
+    assert isinstance(result, list)
+    assert len(result) == 1
+    error = result[0]
+    logger.debug(f"NO_MATCH error: {error}")
+    assert error.error_type == ErrorType.NO_MATCH
+    assert error.severity == ErrorSeverity.ERROR
+    assert error.message == "No matching lines found"
+    assert error.details == {"file": "src/main.py"}
+    assert error.change == change
+
+def test_multiple_matches_error():
+    """Test ApplydirError creation for MULTIPLE_MATCHES with ApplydirMatcher."""
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Common')"],
+        changed_lines=["print('Modified')"],
+        base_dir=Path.cwd(),
+    )
+    matcher = ApplydirMatcher(similarity_threshold=0.95)
+    file_content = ["print('Common')", "print('Other')", "print('Common')"]
+    result = matcher.match(file_content, change)
+    assert isinstance(result, list)
+    assert len(result) == 1
+    error = result[0]
+    logger.debug(f"MULTIPLE_MATCHES error: {error}")
+    assert error.error_type == ErrorType.MULTIPLE_MATCHES
+    assert error.severity == ErrorSeverity.ERROR
+    assert error.message == "Multiple matches found for original_lines"
+    assert error.details == {"file": "src/main.py", "match_count": 2}
+    assert error.change == change
+
+def test_error_type_str_representation():
+    """Test string representation of ErrorType values."""
+    assert str(ErrorType.NO_MATCH) == "No matching lines found in file"
+    assert str(ErrorType.MULTIPLE_MATCHES) == "Multiple matches found for original_lines"
+    assert str(ErrorType.JSON_STRUCTURE) == "Invalid JSON structure or action"
+    assert str(ErrorType.FILE_PATH) == "Invalid file path"
+    assert str(ErrorType.CHANGES_EMPTY) == "Empty changes array for replace_lines or create_file"
+    assert str(ErrorType.SYNTAX) == "Invalid syntax in changed_lines"
+    assert str(ErrorType.EMPTY_CHANGED_LINES) == "Empty changed_lines for replace_lines or create_file"
+    assert str(ErrorType.FILE_SYSTEM) == "File system operation failed"
+    assert str(ErrorType.LINTING) == "Linting failed on file (handled by vibedir)"
+    assert str(ErrorType.CONFIGURATION) == "Invalid configuration"
