@@ -470,16 +470,18 @@ def test_no_match_error_integration():
     )
     matcher = ApplydirMatcher(similarity_threshold=0.95)
     file_content = ["print('Different')", "print('Other')"]
-    result = matcher.match(file_content, change)
-    assert isinstance(result, list)
-    assert len(result) == 1
-    error = result[0]
-    logger.debug(f"NO_MATCH error: {error}")
-    assert error.error_type == ErrorType.NO_MATCH
-    assert error.severity == ErrorSeverity.ERROR
-    assert error.message == "No matching lines found"
-    assert error.details == {"file": "src/main.py"}
-    assert error.change == change
+    result, errors = matcher.match(file_content, change)
+    print(f"result is {result}")
+    print(f"errors is {errors}")
+    assert isinstance(errors, list)
+    assert len(errors) == 1
+
+    logger.debug(f"NO_MATCH error: {errors[0]}")
+    assert errors[0].error_type == ErrorType.NO_MATCH
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "No matching lines found"
+    assert errors[0].details == {"file": "src/main.py", 'original_lines': ["print('Unique')"]}
+    assert errors[0].change == change
 
 
 def test_multiple_matches_error_integration():
@@ -493,14 +495,15 @@ def test_multiple_matches_error_integration():
     )
     matcher = ApplydirMatcher(similarity_threshold=0.95)
     file_content = ["print('Common')", "print('Other')", "print('Common')"]
-    result = matcher.match(file_content, change)
+    result, errors = matcher.match(file_content, change)
     print(f"result is {result}")
-    assert isinstance(result, list)
-    assert len(result) == 1
-    error = result[0]
-    logger.debug(f"MULTIPLE_MATCHES error: {error}")
-    assert error.error_type == ErrorType.MULTIPLE_MATCHES
-    assert error.severity == ErrorSeverity.ERROR
-    assert error.message == "Multiple matches found for original_lines"
-    assert error.details == {"file": "src/main.py", "match_count": 2}
-    assert error.change == change
+    print(f"errors is {errors}")
+    assert isinstance(errors, list)
+    assert len(errors) == 1
+
+    logger.debug(f"MULTIPLE_MATCHES error: {errors[0]}")
+    assert errors[0].error_type == ErrorType.MULTIPLE_MATCHES
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Multiple matches found for original_lines"
+    assert errors[0].details == {"file": "src/main.py", "match_count": 2, 'match_indices': [0, 2]}
+    assert errors[0].change == change
