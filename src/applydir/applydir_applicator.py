@@ -8,7 +8,6 @@ from pathlib import Path
 from prepdir import load_config
 from typing import List, Optional, Dict
 
-
 class ApplydirApplicator:
     """Applies validated changes to files."""
 
@@ -28,7 +27,6 @@ class ApplydirApplicator:
         default_config = load_config(namespace="applydir") or {
             "use_temp_files": True,
             "validation": {"non_ascii": {"default": "warning", "rules": []}},
-            "context_lines": 5,
             "allow_file_deletion": True,
         }
         self.config = Dynaconf(settings_files=[default_config], merge_enabled=True)

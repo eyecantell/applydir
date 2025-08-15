@@ -3,7 +3,6 @@ from typing import List, Dict, Union, Optional
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from .applydir_file_change import ApplydirFileChange
 
-
 class ApplydirMatcher:
     """Matches original_lines in file content using fuzzy matching."""
 

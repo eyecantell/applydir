@@ -4,9 +4,9 @@
 The `applydir` project automates code changes with >95% reliability, integrating with `prepdir` (file contents) and `vibedir` (LLM prompts, Git, linting). Changes are specified in a JSON array of file objects, using `"replace_lines"` for line-level changes, `"create_file"` for new files, and `"delete_file"` for file deletions. Paths are resolvable within the project directory, matching `prepdir`’s output.
 
 ## Core Design Principles
-- **Unified Replace Approach**: `"replace_lines"` replaces `original_lines` (default ≥5 lines, configurable, min 3) with `changed_lines`. `"create_file"` uses empty `original_lines`.
-- **File Deletion**: `"delete_file"` omits `changes`.
-- **Reliability (>95%)**: ≥5 lines in `original_lines`, with `vibedir.min_context.calculate_min_context` for unique matching. Fuzzy matching and path validation ensure reliability.
+- **Unified Replace Approach**: `"replace_lines"` replaces `original_lines` with `changed_lines`. `"create_file"` uses empty `original_lines`.
+- **File Deletion**: `"delete_file"` omits `changes`, controlled by `allow_file_deletion`.
+- **Reliability (>95%)**: Fuzzy matching and path validation ensure reliability. Multiple matches trigger `vibedir` to use `min_context.calculate_min_context` for LLM follow-up.
 - **Minimal JSON**: Only `file`, optional `action`, and `changes`.
 - **Resolvable Paths**: Relative or absolute paths resolved in project directory.
 - **Validation Simplicity**: Validates JSON, actions, paths, syntax, and matching.
@@ -21,7 +21,7 @@ The `applydir` project automates code changes with >95% reliability, integrating
     "action": "<delete_file|replace_lines|create_file>", // Optional; "replace_lines" default
     "changes": [
       {
-        "original_lines": [<≥5 lines (configurable, min 3) for existing files, or empty>],
+        "original_lines": [<non-empty for replace_lines, empty for create_file>],
         "changed_lines": [<new lines or full content>]
       }
     ]
@@ -33,10 +33,10 @@ The `applydir` project automates code changes with >95% reliability, integrating
 - **File Object**:
   - `file`: Path (e.g., `src/main.py`).
   - `action`: `"delete_file"`, `"replace_lines"`, `"create_file"`, or absent (`"replace_lines"`).
-  - `changes`: Required for `"replace_lines"` and `"create_file"`.
+  - `changes`: Optional for `"delete_file"`, required for `"replace_lines"` and `"create_file"`.
 - **Change Object**:
-  - `original_lines`: ≥5 lines for `"replace_lines"`, empty for `"create_file"`.
-  - `changed_lines`: Replacement or full content.
+  - `original_lines`: Non-empty for `"replace_lines"`, empty for `"create_file"`.
+  - `changed_lines`: Non-empty for replacements or new files.
 
 ### Example Cases
 See JSON Format in `applydir_design_overview_20250815.md`.
@@ -56,7 +56,6 @@ validation:
         action: warning
   allow_file_deletion: true
 use_temp_files: true
-auto_display_diff: true
 ```
 
 ## Class Structure
@@ -67,15 +66,19 @@ auto_display_diff: true
      - `error_type: ErrorType` (e.g., `json_structure`, `file_path`, `matching`)
      - `severity: ErrorSeverity` (`error`, `warning`)
      - `message: str`
-     - `details: Optional[Dict]` (e.g., `match_count`, `context_lines`)
+     - `details: Optional[Dict]` (e.g., `match_count`)
    - **Validation**: Valid enums, non-empty `message`, `details` defaults to `{}`.
 
 2. **ApplydirChanges (Pydantic)**:
-   - **Purpose**: Parse/validate JSON, create `ApplydirFileChange` objects.
-   - **Attributes**: `files: List[Dict[str, Union[str, str, List[ApplydirFileChange]]]]`
+   - **Purpose**: Parse and validate JSON array, create `ApplydirFileChange` objects.
+   - **Attributes**:
+     - `files: List[FileEntry]`, where `FileEntry` is:
+       - `file: str`: Relative file path.
+       - `action: Optional[str] = "replace_lines"`: `"delete_file"`, `"replace_lines"`, or `"create_file"`.
+       - `changes: Optional[List[ApplydirFileChange]]`: Changes for `"replace_lines"` or `"create_file"`.
    - **Validation**:
      - Array of file objects, valid `file` paths, `action` in `{delete_file, replace_lines, create_file}` or absent.
-     - `"delete_file"`: File exists, ignore `changes`.
+     - `"delete_file"`: File exists, `changes` ignored.
      - `"replace_lines"`: Non-empty `changes.original_lines` and `changes.changed_lines`.
      - `"create_file"`: Empty `changes.original_lines`, non-empty `changes.changed_lines`.
      - Warn on extra fields.
@@ -83,19 +86,19 @@ auto_display_diff: true
 
 3. **ApplydirFileChange (Pydantic)**:
    - **Purpose**: Validate single change for `"replace_lines"` or `"create_file"`.
-   - **Attributes**: `file: str`, `original_lines: List[str]`, `changed_lines: List[str]`.
+   - **Attributes**: `file: str`, `original_lines: List[str]`, `changed_lines: List[str]`, `base_dir: Optional[Path]`.
    - **Validation**:
      - Resolvable paths.
      - Non-ASCII per `config.yaml`.
+     - `"replace_lines"`: Non-empty `original_lines` and `changed_lines`.
      - `"create_file"`: Empty `original_lines`, non-empty `changed_lines`.
-     - `"replace_lines"`: Non-empty `original_lines` (≥3 lines or all for short files).
    - **Error Handling**: Returns `List[ApplydirError]`.
 
 4. **ApplydirMatcher**:
    - **Purpose**: Match `original_lines` using `difflib`.
-   - **Attributes**: `similarity_threshold: float`, `max_search_lines: Optional[int]`, `context_lines: int` (default 5).
+   - **Attributes**: `similarity_threshold: float`, `max_search_lines: Optional[int]`.
    - **Methods**: `match(file_content: List[str], change: ApplydirFileChange) -> Union[Dict, List[ApplydirError]]`
-   - **Error Handling**: Returns `ApplydirError` for no/multiple matches, with `match_count`.
+   - **Error Handling**: Returns `ApplydirError` for no matches or multiple matches, including `match_count`.
 
 5. **ApplydirApplicator**:
    - **Purpose**: Apply changes using `ApplydirFileChange` and `ApplydirMatcher`.
@@ -103,8 +106,8 @@ auto_display_diff: true
    - **Methods**:
      - `apply_changes() -> List[ApplydirError]`
      - `apply_single_change(change: ApplydirFileChange) -> List[ApplydirError]`
-     - `write_changes(file_path: str, changed_lines: List[str], range: Optional[Dict])`
      - `delete_file(file_path: str) -> List[ApplydirError]`
+     - `write_changes(file_path: str, changed_lines: List[str], range: Optional[Dict])`
    - **Error Handling**: Returns `List[ApplydirError]` for file system/matching errors.
 
 6. **vibedir.min_context.calculate_min_context**:
@@ -116,19 +119,19 @@ auto_display_diff: true
 
 ## CLI Utility
 ```bash
-applydir changes.json --base-dir /path/to/project --context-lines 5 --no-temp-files --allow-file-deletion true --non-ascii-action=error --log-level=DEBUG
+applydir changes.json --base-dir /path/to/project --no-allow-file-deletion --no-temp-files --non-ascii-action=error --log-level=DEBUG
 ```
 
 ## Error Types
 - `json_structure`: Invalid JSON or `action`.
-- `file_path`: Invalid path (e.g., non-existent for `"delete_file"`).
-- `changes_empty`: Empty `changes` for `"replace_lines"`.
+- `file_path`: Invalid path.
+- `changes_empty`: Empty `changes` for `"replace_lines"` or `"create_file"`.
 - `syntax`: Invalid `changed_lines` syntax.
-- `empty_changed_lines`: Empty `changed_lines` for `"create_file"`.
+- `empty_changed_lines`: Empty `changed_lines`.
 - `matching`: No/multiple matches for `original_lines`.
 - `file_system`: File operation errors.
 - `linting`: Linting errors (via `vibedir`).
-- `configuration`: Invalid config (e.g., `context_lines` < 3).
+- `configuration`: Invalid config (e.g., deletion disabled).
 
 ## Error Format
 ```json
@@ -138,7 +141,7 @@ applydir changes.json --base-dir /path/to/project --context-lines 5 --no-temp-fi
     "error_type": "matching",
     "severity": "error",
     "message": "Multiple matches found",
-    "details": {"match_count": 3, "context_lines": 5}
+    "details": {"match_count": 3}
   }
 ]
 ```
@@ -154,7 +157,6 @@ See Workflow in `applydir_design_overview_20250815.md`.
 - **dynaconf**: Configuration merging.
 
 ## Next Steps
-- Implement `vibedir.min_context.calculate_min_context`.
-- Update `ApplydirChanges`/`ApplydirApplicator` for new actions.
-- Test LLM prompt and test cases.
-- Plan `vibedir`’s diff view for `"delete_file"`.
+- Test new actions and multiple-match handling.
+- Integrate `vibedir.min_context.calculate_min_context` for multiple matches.
+- Implement `vibedir`’s diff view for `"delete_file"`.
