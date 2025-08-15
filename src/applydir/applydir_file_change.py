@@ -50,6 +50,7 @@ class ApplydirFileChange(BaseModel):
         if config is None:
             config = {}
 
+        # Validate file path
         if not self.file:
             errors.append(
                 ApplydirError(
@@ -57,6 +58,17 @@ class ApplydirFileChange(BaseModel):
                     error_type=ErrorType.FILE_PATH,
                     severity=ErrorSeverity.ERROR,
                     message="No file path specified",
+                )
+            )
+
+        # Validate non-empty original_lines for replace_lines
+        if self.original_lines is not None and len(self.original_lines) == 0 and len(self.changed_lines) > 0:
+            errors.append(
+                ApplydirError(
+                    change=self,
+                    error_type=ErrorType.CHANGES_EMPTY,
+                    severity=ErrorSeverity.ERROR,
+                    message="Empty original_lines not allowed for replace_lines",
                 )
             )
 

@@ -273,15 +273,19 @@ def test_empty_config():
     logger.debug("Empty config: no errors")
 
 def test_replace_lines_validation():
-    """Test validation for replace_lines requiring non-empty original_lines and changed_lines."""
+    """Test validation for replace_lines requiring non-empty original_lines."""
+    # Valid: non-empty original_lines, non-empty changed_lines
     change = ApplydirFileChange(
         file="src/main.py",
-        original_lines=[],
+        original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
         base_dir=Path.cwd(),
     )
     errors = change.validate_change()
-    assert len(errors) == 0  # Empty original_lines allowed for create_file
+    assert len(errors) == 0
+    logger.debug("Valid replace_lines: non-empty original_lines and changed_lines")
+
+    # Valid: non-empty original_lines, empty changed_lines (removal)
     change = ApplydirFileChange(
         file="src/main.py",
         original_lines=["print('Hello')"],
@@ -289,8 +293,33 @@ def test_replace_lines_validation():
         base_dir=Path.cwd(),
     )
     errors = change.validate_change()
-    assert len(errors) == 0  # Empty changed_lines allowed for replace_lines
-    logger.debug("Replace lines validation")
+    assert len(errors) == 0
+    logger.debug("Valid replace_lines: non-empty original_lines, empty changed_lines")
+
+    # Invalid: empty original_lines, non-empty changed_lines
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=[],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd(),
+    )
+    errors = change.validate_change()
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.CHANGES_EMPTY
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Empty original_lines not allowed for replace_lines"
+    logger.debug(f"Invalid replace_lines: {errors[0]}")
+
+    # Valid: empty original_lines and changed_lines (create_file)
+    change = ApplydirFileChange(
+        file="src/new.py",
+        original_lines=[],
+        changed_lines=[],
+        base_dir=Path.cwd(),
+    )
+    errors = change.validate_change()
+    assert len(errors) == 0
+    logger.debug("Valid create_file: empty original_lines and changed_lines")
 
 def test_no_match_error_integration():
     """Test ApplydirFileChange with ApplydirMatcher producing NO_MATCH error."""
