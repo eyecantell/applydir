@@ -87,6 +87,16 @@ class ApplydirFileChange(BaseModel):
                         message="Empty original_lines not allowed for replace_lines",
                     )
                 )
+        elif self.action == ActionType.CREATE_FILE:
+            if self.original_lines:
+                errors.append(
+                    ApplydirError(
+                        change=self,
+                        error_type=ErrorType.ORIG_LINES_NOT_EMPTY,
+                        severity=ErrorSeverity.ERROR,
+                        message="Non-empty original_lines not allowed for create_file",
+                    )
+                )
 
         # Determine non-ASCII action based on file extension
         non_ascii_action = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()

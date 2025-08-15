@@ -141,7 +141,7 @@ def test_empty_changed_lines_new_file():
     logger.debug("Empty changed_lines for new file")
 
 def test_valid_change_no_original_lines():
-    """Test valid change with no original lines for create_file."""
+    """Test valid change for create_file with empty original_lines."""
     change = ApplydirFileChange(
         file="src/new.py",
         original_lines=[],
@@ -151,7 +151,7 @@ def test_valid_change_no_original_lines():
     )
     errors = change.validate_change()
     assert len(errors) == 0
-    logger.debug("Valid change with no original lines")
+    logger.debug("Valid change for create_file with empty original_lines")
 
 def test_base_dir_storage():
     """Test base_dir is stored correctly."""
@@ -204,7 +204,7 @@ def test_non_ascii_md_file_ignore():
     """Test non-ASCII characters in .md file are ignored."""
     change = ApplydirFileChange(
         file="src/docs.md",
-        original_lines=["Hello"],
+        original_lines=[],
         changed_lines=["Hello 😊"],
         base_dir=Path.cwd(),
         action=ActionType.CREATE_FILE,
@@ -217,8 +217,8 @@ def test_non_ascii_json_file_warning():
     """Test non-ASCII characters in .json file generates WARNING."""
     change = ApplydirFileChange(
         file="src/config.json",
-        original_lines=['{"key": "value"}'],
-        changed_lines=['{"key": "value 😊"}'],
+        original_lines=["{\"key\": \"value\"}"],
+        changed_lines=["{\"key\": \"value 😊\"}"],
         base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
@@ -227,14 +227,14 @@ def test_non_ascii_json_file_warning():
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.WARNING
     assert errors[0].message == "Non-ASCII characters found in changed_lines"
-    assert errors[0].details == {"line": '{"key": "value 😊"}', "line_number": 1}
+    assert errors[0].details == {"line": "{\"key\": \"value 😊\"}", "line_number": 1}
     logger.debug(f"Non-ASCII warning for .json: {errors[0]}")
 
 def test_non_ascii_default_action():
     """Test non-ASCII characters in unlisted extension (.txt) uses default WARNING."""
     change = ApplydirFileChange(
         file="src/notes.txt",
-        original_lines=["Hello"],
+        original_lines=[],
         changed_lines=["Hello 😊"],
         base_dir=Path.cwd(),
         action=ActionType.CREATE_FILE,
@@ -319,8 +319,8 @@ def test_empty_config():
     assert len(errors) == 0
     logger.debug("Empty config: no errors")
 
-def test_replace_lines_validation():
-    """Test validation for replace_lines requiring non-empty original_lines."""
+def test_action_validation():
+    """Test validation for action-specific rules."""
     # Valid: non-empty original_lines, non-empty changed_lines, replace_lines
     change = ApplydirFileChange(
         file="src/main.py",
@@ -372,7 +372,19 @@ def test_replace_lines_validation():
     assert len(errors) == 0
     logger.debug("Valid create_file: empty original_lines and changed_lines")
 
-    # Valid: non-empty original_lines and changed_lines, create_file
+    # Valid: empty original_lines, non-empty changed_lines, create_file
+    change = ApplydirFileChange(
+        file="src/new.py",
+        original_lines=[],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd(),
+        action=ActionType.CREATE_FILE,
+    )
+    errors = change.validate_change()
+    assert len(errors) == 0
+    logger.debug("Valid create_file: empty original_lines, non-empty changed_lines")
+
+    # Invalid: non-empty original_lines, create_file
     change = ApplydirFileChange(
         file="src/new.py",
         original_lines=["print('Hello')"],
@@ -381,8 +393,11 @@ def test_replace_lines_validation():
         action=ActionType.CREATE_FILE,
     )
     errors = change.validate_change()
-    assert len(errors) == 0
-    logger.debug("Valid create_file: non-empty original_lines and changed_lines")
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.ORIG_LINES_NOT_EMPTY
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Non-empty original_lines not allowed for create_file"
+    logger.debug(f"Invalid create_file: {errors[0]}")
 
 def test_invalid_action():
     """Test invalid action value raises ValidationError."""
