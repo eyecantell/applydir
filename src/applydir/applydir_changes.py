@@ -1,16 +1,15 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel, field_validator, ValidationInfo
-from .applydir_file_change import ApplydirFileChange, ActionType
+from .applydir_file_change import ApplydirFileChange, ActionType, ConfigDict
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from pathlib import Path
 import logging
+from pydantic_core import PydanticCustomError
 
 logger = logging.getLogger("applydir")
 
-
 class FileEntry(BaseModel):
     """Represents a single file entry with a file path, action, and list of changes."""
-
     file: str
     action: Optional[str] = "replace_lines"  # Default to replace_lines
     changes: Optional[List[Dict]] = None
@@ -23,7 +22,6 @@ class FileEntry(BaseModel):
         if v not in ["delete_file", "replace_lines", "create_file", None]:
             raise ValueError(f"Invalid action: {v}. Must be 'delete_file', 'replace_lines', or 'create_file'.")
         return v
-
 
 class ApplydirChanges(BaseModel):
     """Parses and validates JSON input for applydir changes."""
@@ -120,7 +118,11 @@ class ApplydirChanges(BaseModel):
                                     )
                                 )
         if errors:
-            raise ValueError(errors)
+            raise PydanticCustomError(
+                "value_error",
+                str([e.model_dump() for e in errors]),
+                {"errors": [e.model_dump() for e in errors]}
+            )
         return v
 
     def validate_changes(self, base_dir: str, config_override: Optional[Dict] = None) -> List[ApplydirError]:

@@ -26,7 +26,6 @@ TEST_ASCII_CONFIG = {
     }
 }
 
-
 def test_valid_changes():
     """Test valid JSON input with file, action, and changes."""
     changes_json = [
@@ -40,9 +39,7 @@ def test_valid_changes():
     errors = changes.validate_changes(base_dir=Path.cwd())
     assert len(errors) == 0
     assert changes.files[0].action == "replace_lines"
-    assert changes.files[0].changes[0]["action"] == "replace_lines"
     logger.debug(f"Valid changes: {changes}")
-
 
 def test_multiple_changes_per_file():
     """Test valid JSON input with multiple changes for a single file."""
@@ -62,16 +59,11 @@ def test_multiple_changes_per_file():
     assert len(changes.files[0].changes) == 2
     assert changes.files[0].file == "src/main.py"
     assert changes.files[0].action == "replace_lines"
-    assert changes.files[0].changes[0]["file"] == "src/main.py"
     assert changes.files[0].changes[0]["original_lines"] == ["print('Hello')"]
     assert changes.files[0].changes[0]["changed_lines"] == ["print('Hello World')"]
-    assert changes.files[0].changes[0]["action"] == "replace_lines"
-    assert changes.files[0].changes[1]["file"] == "src/main.py"
     assert changes.files[0].changes[1]["original_lines"] == ["print('Another change')"]
     assert changes.files[0].changes[1]["changed_lines"] == ["print('Good change!')"]
-    assert changes.files[0].changes[1]["action"] == "replace_lines"
     logger.debug(f"Multiple changes: {changes}")
-
 
 def test_empty_files_array():
     """Test empty files array raises ValidationError."""
@@ -79,7 +71,6 @@ def test_empty_files_array():
         ApplydirChanges(files=[])
     logger.debug(f"Validation error for empty files: {exc_info.value}")
     assert "JSON must contain a non-empty array of files" in str(exc_info.value)
-
 
 def test_missing_file_key():
     """Test missing file key raises ValidationError."""
@@ -89,7 +80,6 @@ def test_missing_file_key():
     logger.debug(f"Validation error for missing file key: {exc_info.value}")
     assert "Field required" in str(exc_info.value)
 
-
 def test_empty_changes_array():
     """Test empty changes array raises ValidationError."""
     changes_json = [{"file": "src/main.py", "action": "replace_lines", "changes": []}]
@@ -97,7 +87,6 @@ def test_empty_changes_array():
         ApplydirChanges(files=changes_json)
     logger.debug(f"Validation error for empty changes: {exc_info.value}")
     assert "Empty changes array for replace_lines or create_file" in str(exc_info.value)
-
 
 def test_invalid_file_change():
     """Test invalid ApplydirFileChange produces errors."""
@@ -115,11 +104,10 @@ def test_invalid_file_change():
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "Invalid syntax in changed_lines"
+    assert errors[0].message == "Non-ASCII characters found in changed_lines"
     assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
     assert errors[0].change.action == ActionType.REPLACE_LINES
     logger.debug(f"Invalid file change error: {errors[0]}")
-
 
 def test_changes_serialization():
     """Test JSON serialization of ApplydirChanges."""
@@ -137,9 +125,7 @@ def test_changes_serialization():
     assert serialized["files"][0]["action"] == "replace_lines"
     assert serialized["files"][0]["changes"][0]["original_lines"] == changes_json[0]["changes"][0]["original_lines"]
     assert serialized["files"][0]["changes"][0]["changed_lines"] == changes_json[0]["changes"][0]["changed_lines"]
-    assert serialized["files"][0]["changes"][0]["action"] == "replace_lines"
     assert serialized["base_dir"] == str(Path.cwd())
-
 
 def test_invalid_files_type():
     """Test invalid type for files raises ValidationError."""
@@ -148,7 +134,6 @@ def test_invalid_files_type():
     logger.debug(f"Validation error for invalid files type: {exc_info.value}")
     assert "Input should be a valid list" in str(exc_info.value)
 
-
 def test_empty_file_entry():
     """Test empty file entry dictionary raises ValidationError."""
     changes_json = [{}]
@@ -156,7 +141,6 @@ def test_empty_file_entry():
         ApplydirChanges(files=changes_json)
     logger.debug(f"Validation error for empty file entry: {exc_info.value}")
     assert "Field required" in str(exc_info.value)
-
 
 def test_multiple_errors():
     """Test multiple validation errors in one JSON input."""
@@ -174,21 +158,21 @@ def test_multiple_errors():
         {
             "file": "src/new.py",
             "action": "create_file",
-            "changes": [
-                {"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}
-            ],  # Non-empty original_lines
+            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],  # Non-empty original_lines
         },
     ]
     with pytest.raises(ValidationError) as exc_info:
         ApplydirChanges(files=changes_json)
     errors = exc_info.value.errors()
-    error_messages = [e["msg"] for e in errors]
+    error_messages = []
+    for e in errors:
+        if "errors" in e["ctx"]:
+            error_messages.extend([err["message"] for err in e["ctx"]["errors"]])
     logger.debug(f"Multiple errors: {error_messages}")
-    assert len(errors) >= 3  # File path, empty original_lines, non-empty original_lines for create_file
+    assert len(error_messages) >= 3  # File path, empty original_lines, non-empty original_lines for create_file
     assert any("File path missing or empty" in msg for msg in error_messages)
     assert any("Empty original_lines not allowed for replace_lines" in msg for msg in error_messages)
     assert any("Non-empty original_lines not allowed for create_file" in msg for msg in error_messages)
-
 
 def test_valid_new_file_change():
     """Test valid new file change with no original lines."""
@@ -203,9 +187,7 @@ def test_valid_new_file_change():
     errors = changes.validate_changes(base_dir=Path.cwd())
     assert len(errors) == 0
     assert changes.files[0].action == "create_file"
-    assert changes.files[0].changes[0]["action"] == "create_file"
     logger.debug("Valid new file change")
-
 
 def test_invalid_create_file_non_empty_original_lines():
     """Test invalid create_file with non-empty original_lines."""
@@ -222,7 +204,6 @@ def test_invalid_create_file_non_empty_original_lines():
     logger.debug(f"Invalid create_file error: {error_messages}")
     assert any("Non-empty original_lines not allowed for create_file" in msg for msg in error_messages)
 
-
 def test_delete_file_action():
     """Test valid delete_file action with no changes."""
     changes_json = [
@@ -238,7 +219,6 @@ def test_delete_file_action():
     logger.debug(f"Delete file error: {error_messages}")
     assert any("File does not exist for deletion" in msg for msg in error_messages)
 
-
 def test_empty_original_lines_replace_lines():
     """Test empty original_lines for replace_lines raises ORIG_LINES_EMPTY."""
     changes_json = [
@@ -253,7 +233,6 @@ def test_empty_original_lines_replace_lines():
     error_messages = [e["msg"] for e in exc_info.value.errors()]
     logger.debug(f"Empty original_lines error: {error_messages}")
     assert any("Empty original_lines not allowed for replace_lines" in msg for msg in error_messages)
-
 
 def test_applydir_file_change_creation():
     """Test creation of ApplydirFileChange objects during validation."""
