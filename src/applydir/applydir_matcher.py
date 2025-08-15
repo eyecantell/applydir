@@ -3,6 +3,7 @@ from typing import List, Dict, Union, Optional
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from .applydir_file_change import ApplydirFileChange
 
+
 class ApplydirMatcher:
     """Matches original_lines in file content using fuzzy matching."""
 
@@ -18,7 +19,7 @@ class ApplydirMatcher:
 
         # Check all possible windows of size m
         for i in range(n - m + 1):
-            matcher = SequenceMatcher(None, file_content[i:i + m], change.original_lines)
+            matcher = SequenceMatcher(None, file_content[i : i + m], change.original_lines)
             if matcher.ratio() >= self.similarity_threshold:
                 matches.append({"start": i, "end": i + m})
 

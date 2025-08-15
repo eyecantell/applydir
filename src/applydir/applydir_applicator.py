@@ -8,6 +8,7 @@ from pathlib import Path
 from prepdir import load_config
 from typing import List, Optional, Dict
 
+
 class ApplydirApplicator:
     """Applies validated changes to files."""
 
