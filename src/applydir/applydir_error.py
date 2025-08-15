@@ -2,11 +2,9 @@ from typing import Optional, Dict, ClassVar
 from pydantic import BaseModel, field_validator, ConfigDict, field_serializer
 from enum import Enum
 
-
 class ErrorSeverity(str, Enum):
     ERROR = "error"
     WARNING = "warning"
-
 
 class ErrorType(str, Enum):
     JSON_STRUCTURE = "json_structure"
@@ -37,7 +35,6 @@ class ErrorType(str, Enum):
             ErrorType.LINTING: "Linting failed on file (handled by vibedir)",
             ErrorType.CONFIGURATION: "Invalid configuration",
         }[self]
-
 
 class ApplydirError(BaseModel):
     change: Optional["ApplydirFileChange"] = None  # Forward reference

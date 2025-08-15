@@ -494,6 +494,7 @@ def test_multiple_matches_error_integration():
     matcher = ApplydirMatcher(similarity_threshold=0.95)
     file_content = ["print('Common')", "print('Other')", "print('Common')"]
     result = matcher.match(file_content, change)
+    print(f"result is {result}")
     assert isinstance(result, list)
     assert len(result) == 1
     error = result[0]

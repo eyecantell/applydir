@@ -88,3 +88,8 @@ select = [
 ignore = [
     "E501", # Line length handled by ruff formatter
 ]
+
+[tool.pytest.ini_options]
+addopts = "--cov=src/applydir --cov-report=term --cov-report=html"
+python_files = "test_*.py"
+testpaths = ["tests"]

@@ -1,8 +1,10 @@
 from difflib import SequenceMatcher
-from typing import List, Dict, Union, Optional
+from typing import List, Dict, Optional, Tuple
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
-from .applydir_file_change import ApplydirFileChange
+from .applydir_file_change import ApplydirFileChange, ActionType
+import logging
 
+logger = logging.getLogger("applydir")
 
 class ApplydirMatcher:
     """Matches original_lines in file content using fuzzy matching."""
@@ -11,36 +13,80 @@ class ApplydirMatcher:
         self.similarity_threshold = similarity_threshold
         self.max_search_lines = max_search_lines
 
-    def match(self, file_content: List[str], change: ApplydirFileChange) -> Union[Dict, List[ApplydirError]]:
-        """Matches original_lines in file_content."""
+    def match(self, file_content: List[str], change: ApplydirFileChange) -> Tuple[Optional[Dict], List[ApplydirError]]:
+        """Matches original_lines in file_content, skips for create_file."""
+        errors = []
+        logger.debug(f"Matching for file: {change.file}, action: {change.action}")
+
+        if change.action == ActionType.CREATE_FILE:
+            logger.debug(f"Skipping match for create_file action: {change.file}")
+            return None, []
+
+        if not file_content:
+            logger.debug(f"Empty file content for {change.file}")
+            errors.append(
+                ApplydirError(
+                    change=change,
+                    error_type=ErrorType.NO_MATCH,
+                    severity=ErrorSeverity.ERROR,
+                    message="No match: File is empty",
+                    details={"file": str(change.file)},
+                )
+            )
+            return None, errors
+
+        if not change.original_lines:
+            logger.debug(f"Empty original_lines for {change.file}")
+            errors.append(
+                ApplydirError(
+                    change=change,
+                    error_type=ErrorType.NO_MATCH,
+                    severity=ErrorSeverity.ERROR,
+                    message="No match: original_lines is empty",
+                    details={"file": str(change.file)},
+                )
+            )
+            return None, errors
+
         matches = []
         n = len(file_content)
         m = len(change.original_lines)
+        search_limit = min(n - m + 1, self.max_search_lines) if self.max_search_lines else n - m + 1
 
         # Check all possible windows of size m
-        for i in range(n - m + 1):
-            matcher = SequenceMatcher(None, file_content[i : i + m], change.original_lines)
-            if matcher.ratio() >= self.similarity_threshold:
+        for i in range(search_limit):
+            window = file_content[i : i + m]
+            matcher = SequenceMatcher(None, window, change.original_lines)
+            ratio = matcher.ratio()
+            logger.debug(f"Match attempt at index {i} for {change.file}, ratio: {ratio}")
+            if ratio >= self.similarity_threshold:
                 matches.append({"start": i, "end": i + m})
 
         if not matches:
-            return [
+            logger.debug(f"No matches found for {change.file}")
+            errors.append(
                 ApplydirError(
                     change=change,
                     error_type=ErrorType.NO_MATCH,
                     severity=ErrorSeverity.ERROR,
                     message="No matching lines found",
-                    details={"file": change.file},
+                    details={"file": str(change.file), "original_lines": change.original_lines},
                 )
-            ]
+            )
+            return None, errors
+
         if len(matches) > 1:
-            return [
+            logger.debug(f"Multiple matches found for {change.file}: {len(matches)} matches")
+            errors.append(
                 ApplydirError(
                     change=change,
                     error_type=ErrorType.MULTIPLE_MATCHES,
                     severity=ErrorSeverity.ERROR,
                     message="Multiple matches found for original_lines",
-                    details={"file": change.file, "match_count": len(matches)},
+                    details={"file": str(change.file), "match_count": len(matches), "match_indices": [m["start"] for m in matches]},
                 )
-            ]
-        return matches[0]
+            )
+            return None, errors
+
+        logger.debug(f"Single match found for {change.file} at start: {matches[0]['start']}")
+        return matches[0], []
