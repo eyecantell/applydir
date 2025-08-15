@@ -1,5 +1,5 @@
 from typing import Optional, Dict, ClassVar
-from pydantic import BaseModel, field_validator, ConfigDict
+from pydantic import BaseModel, field_validator, ConfigDict, field_serializer
 from enum import Enum
 from pathlib import Path
 
@@ -41,9 +41,13 @@ class ApplydirError(BaseModel):
     details: Optional[Dict] = None
 
     model_config = ConfigDict(
-        json_encoders={Path: str},  # Serialize Path as string
         arbitrary_types_allowed=True,  # Allow Path objects in nested models
     )
+
+    @field_serializer("change")
+    def serialize_change(self, change: Optional["ApplydirFileChange"], _info) -> Optional[Dict]:
+        """Serialize nested ApplydirFileChange using its model_dump."""
+        return change.model_dump(mode="json") if change is not None else None
 
     @field_validator("message")
     @classmethod

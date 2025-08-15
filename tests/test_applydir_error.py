@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from prepdir import configure_logging
 from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
-from applydir.applydir_file_change import ApplydirFileChange
+from applydir.applydir_file_change import ApplydirFileChange, ActionType
 from applydir.applydir_matcher import ApplydirMatcher
 from pydantic import ValidationError
 
@@ -50,6 +50,7 @@ def test_error_with_file_change():
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
         base_dir=Path.cwd(),
+        action=ActionType.REPLACE_LINES,
     )
     error = ApplydirError(
         change=change,
@@ -72,6 +73,7 @@ def test_error_serialization():
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
         base_dir=Path.cwd(),
+        action=ActionType.REPLACE_LINES,
     )
     error = ApplydirError(
         change=change,
@@ -80,13 +82,14 @@ def test_error_serialization():
         message="Non-ASCII characters found",
         details={"line": "print('Hello World')", "line_number": 1},
     )
-    error_dict = error.model_dump(mode="json")  # Use mode="json" for JSON-compatible serialization
+    error_dict = error.model_dump(mode="json")
     logger.debug(f"Serialized error: {error_dict}")
     assert error_dict["change"] == {
         "file": "src/main.py",
         "original_lines": ["print('Hello')"],
         "changed_lines": ["print('Hello World')"],
-        "base_dir": str(Path.cwd()),  # Ensure base_dir is a string
+        "base_dir": str(Path.cwd()),
+        "action": "replace_lines",
     }
     assert error_dict["error_type"] == "syntax"
     assert error_dict["severity"] == "warning"
@@ -102,7 +105,7 @@ def test_error_serialization_none_change():
         message="Invalid JSON structure",
         details={"error": "Missing files array"},
     )
-    error_dict = error.model_dump(mode="json")  # Use mode="json" for consistency
+    error_dict = error.model_dump(mode="json")
     logger.debug(f"Serialized error with None change: {error_dict}")
     assert error_dict["change"] is None
     assert error_dict["error_type"] == "json_structure"
@@ -125,7 +128,11 @@ def test_invalid_message_empty():
     """Test that empty message raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
         ApplydirError(
-            change=None, error_type=ErrorType.JSON_STRUCTURE, severity=ErrorSeverity.ERROR, message="", details={}
+            change=None,
+            error_type=ErrorType.JSON_STRUCTURE,
+            severity=ErrorSeverity.ERROR,
+            message="",
+            details={},
         )
     logger.debug(f"Validation error for empty message: {exc_info.value}")
     assert "Message cannot be empty or whitespace-only" in str(exc_info.value)
@@ -134,7 +141,11 @@ def test_invalid_message_whitespace_only():
     """Test that whitespace-only message raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
         ApplydirError(
-            change=None, error_type=ErrorType.JSON_STRUCTURE, severity=ErrorSeverity.ERROR, message="   ", details={}
+            change=None,
+            error_type=ErrorType.JSON_STRUCTURE,
+            severity=ErrorSeverity.ERROR,
+            message="   ",
+            details={},
         )
     logger.debug(f"Validation error for whitespace-only message: {exc_info.value}")
     assert "Message cannot be empty or whitespace-only" in str(exc_info.value)
@@ -178,7 +189,7 @@ def test_complex_details():
         message="Complex error",
         details=complex_details,
     )
-    error_dict = error.model_dump(mode="json")  # Use mode="json" for consistency
+    error_dict = error.model_dump(mode="json")
     logger.debug(f"Serialized error with complex details: {error_dict}")
     assert error_dict["details"] == complex_details
     assert error_dict["message"] == "Complex error"
@@ -234,6 +245,7 @@ def test_no_match_error():
         original_lines=["print('Unique')"],
         changed_lines=["print('Modified')"],
         base_dir=Path.cwd(),
+        action=ActionType.REPLACE_LINES,
     )
     matcher = ApplydirMatcher(similarity_threshold=0.95)
     file_content = ["print('Different')", "print('Other')"]
@@ -255,6 +267,7 @@ def test_multiple_matches_error():
         original_lines=["print('Common')"],
         changed_lines=["print('Modified')"],
         base_dir=Path.cwd(),
+        action=ActionType.REPLACE_LINES,
     )
     matcher = ApplydirMatcher(similarity_threshold=0.95)
     file_content = ["print('Common')", "print('Other')", "print('Common')"]

@@ -1,10 +1,15 @@
 from typing import List, Optional, Dict
 from pathlib import Path
-from pydantic import BaseModel, field_validator, ValidationInfo, ConfigDict
+from pydantic import BaseModel, field_validator, ValidationInfo, ConfigDict, field_serializer
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
+from enum import Enum
 import logging
 
 logger = logging.getLogger(__name__)
+
+class ActionType(str, Enum):
+    REPLACE_LINES = "replace_lines"
+    CREATE_FILE = "create_file"
 
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
@@ -13,12 +18,22 @@ class ApplydirFileChange(BaseModel):
     original_lines: List[str]
     changed_lines: List[str]
     base_dir: Optional[Path] = None
+    action: ActionType
 
     model_config = ConfigDict(
         extra="forbid",  # Disallow extra fields
         arbitrary_types_allowed=True,  # Allow Path objects
-        json_encoders={Path: str},  # Serialize Path as string
     )
+
+    @field_serializer("base_dir")
+    def serialize_base_dir(self, base_dir: Optional[Path], _info) -> Optional[str]:
+        """Serialize Path as string or None."""
+        return str(base_dir) if base_dir is not None else None
+
+    @field_serializer("action")
+    def serialize_action(self, action: ActionType, _info) -> str:
+        """Serialize ActionType as its string value."""
+        return action.value
 
     @field_validator("file")
     @classmethod
@@ -61,16 +76,17 @@ class ApplydirFileChange(BaseModel):
                 )
             )
 
-        # Validate non-empty original_lines for replace_lines
-        if self.original_lines is not None and len(self.original_lines) == 0 and len(self.changed_lines) > 0:
-            errors.append(
-                ApplydirError(
-                    change=self,
-                    error_type=ErrorType.CHANGES_EMPTY,
-                    severity=ErrorSeverity.ERROR,
-                    message="Empty original_lines not allowed for replace_lines",
+        # Validate action-specific rules
+        if self.action == ActionType.REPLACE_LINES:
+            if not self.original_lines:
+                errors.append(
+                    ApplydirError(
+                        change=self,
+                        error_type=ErrorType.CHANGES_EMPTY,
+                        severity=ErrorSeverity.ERROR,
+                        message="Empty original_lines not allowed for replace_lines",
+                    )
                 )
-            )
 
         # Determine non-ASCII action based on file extension
         non_ascii_action = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()
