@@ -54,7 +54,6 @@ validation:
         action: ignore
       - extensions: [".json", ".yaml"]
         action: warning
-  context_lines: 5 # Default, min 3
   allow_file_deletion: true
 use_temp_files: true
 auto_display_diff: true

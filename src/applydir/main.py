@@ -16,6 +16,7 @@ def main():
     parser.add_argument(
         "--base-dir", type=str, default=".", help="Base directory for file paths (default: current directory)"
     )
+    parser.add_argument("--no-allow-file-deletion", action="store_true", help="Disable file deletion")
     parser.add_argument("--no-temp-files", action="store_true", help="Write changes directly to actual files")
     parser.add_argument(
         "--non-ascii-action",
@@ -33,7 +34,9 @@ def main():
     configure_logging(logger, level=args.log_level)
 
     # Build config override
-    config_override = {}
+    config_override = {
+        "allow_file_deletion": not args.no_allow_file_deletion,
+    }
     if args.no_temp_files:
         config_override["use_temp_files"] = False
     if args.non_ascii_action:
@@ -56,7 +59,7 @@ def main():
         )
 
         # Validate and apply changes
-        errors = changes.validate_changes(base_dir=args.base_dir)
+        errors = changes.validate_changes(base_dir=args.base_dir, config_override=config_override)
         if errors:
             for error in errors:
                 logger.log(

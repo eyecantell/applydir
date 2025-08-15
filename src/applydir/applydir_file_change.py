@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
 
@@ -80,4 +81,5 @@ class ApplydirFileChange(BaseModel):
                             details={"line": line, "line_number": i},
                         )
                     )
+
         return errors

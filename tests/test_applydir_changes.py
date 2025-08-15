@@ -117,7 +117,6 @@ def test_changes_serialization():
     assert serialized["files"][0]["changes"][0]["base_dir"] == None
 
 
-
 def test_invalid_files_type():
     """Test invalid type for files raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -150,7 +149,7 @@ def test_multiple_errors():
     ]
     with pytest.raises(ValidationError) as exc_info:
         changes = ApplydirChanges(files=changes_json)
-        
+
     print(f"exc_info is {exc_info}")
     errors = changes.validate_changes(
         base_dir=Path.cwd(), config_override={"validation": {"non_ascii": {"default": "error"}}}
@@ -160,9 +159,7 @@ def test_multiple_errors():
     assert any(e.error_type == ErrorType.FILE_PATH and e.message == "File path missing or empty" for e in errors)
     assert any(e.error_type == ErrorType.CHANGES_EMPTY and e.message == "Changes array is empty" for e in errors)
     assert any(
-        e.error_type == ErrorType.SYNTAX
-        and e.message == "Non-ASCII characters found in changed_lines"
-        for e in errors
+        e.error_type == ErrorType.SYNTAX and e.message == "Non-ASCII characters found in changed_lines" for e in errors
     )
     logger.debug(f"Multiple errors: {[str(e) for e in errors]}")
 
