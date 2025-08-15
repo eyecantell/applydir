@@ -2,11 +2,9 @@ from typing import Optional, Dict, ClassVar
 from pydantic import BaseModel, field_validator
 from enum import Enum
 
-
 class ErrorSeverity(str, Enum):
     ERROR = "error"
     WARNING = "warning"
-
 
 class ErrorType(str, Enum):
     JSON_STRUCTURE = "json_structure"
@@ -14,36 +12,27 @@ class ErrorType(str, Enum):
     CHANGES_EMPTY = "changes_empty"
     SYNTAX = "syntax"
     EMPTY_CHANGED_LINES = "empty_changed_lines"
-    MATCHING = "matching"
+    NO_MATCH = "no_match"
+    MULTIPLE_MATCHES = "multiple_matches"
     FILE_SYSTEM = "file_system"
     LINTING = "linting"
+    CONFIGURATION = "configuration"
 
+    def __str__(self):
+        return {
+            ErrorType.JSON_STRUCTURE: "Invalid JSON structure or action",
+            ErrorType.FILE_PATH: "Invalid file path",
+            ErrorType.CHANGES_EMPTY: "Empty changes array for replace_lines or create_file",
+            ErrorType.SYNTAX: "Invalid syntax in changed_lines",
+            ErrorType.EMPTY_CHANGED_LINES: "Empty changed_lines for replace_lines or create_file",
+            ErrorType.NO_MATCH: "No matching lines found in file",
+            ErrorType.MULTIPLE_MATCHES: "Multiple matches found for original_lines",
+            ErrorType.FILE_SYSTEM: "File system operation failed",
+            ErrorType.LINTING: "Linting failed on file (handled by vibedir)",
+            ErrorType.CONFIGURATION: "Invalid configuration",
+        }[self]
 
 class ApplydirError(BaseModel):
-    """Represents an error or warning in the applydir process, used for LLM-related validation and vibedir linting.
-
-    Error type descriptions:
-    - json_structure: Bad JSON structure received (e.g., not an array or extra fields).
-    - file_path: Invalid file path provided (e.g., outside project directory).
-    - changes_empty: Empty changes array for file.
-    - syntax: Invalid syntax in changed lines (e.g., non-ASCII characters, configurable via applydir_config.yaml).
-    - empty_changed_lines: Empty changed lines for new file.
-    - matching: No matching lines found in file.
-    - file_system: File system operation failed (e.g., file exists, permissions).
-    - linting: Linting failed on file (handled by vibedir).
-    """
-
-    ERROR_DESCRIPTIONS: ClassVar[Dict[ErrorType, str]] = {
-        ErrorType.JSON_STRUCTURE: "Bad JSON structure received",
-        ErrorType.FILE_PATH: "Invalid file path provided",
-        ErrorType.CHANGES_EMPTY: "Empty changes array for file",
-        ErrorType.SYNTAX: "Invalid syntax in changed lines",
-        ErrorType.EMPTY_CHANGED_LINES: "Empty changed lines for new file",
-        ErrorType.MATCHING: "No matching lines found",
-        ErrorType.FILE_SYSTEM: "File system operation failed",
-        ErrorType.LINTING: "Linting failed on file (handled by vibedir)",
-    }
-
     change: Optional["ApplydirFileChange"] = None  # Forward reference
     error_type: ErrorType
     severity: ErrorSeverity = ErrorSeverity.ERROR

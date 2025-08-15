@@ -63,10 +63,10 @@ use_temp_files: true
    - **Purpose**: JSON-serializable error/warning.
    - **Attributes**:
      - `change: Optional[ApplydirFileChange]`
-     - `error_type: ErrorType` (e.g., `json_structure`, `file_path`, `matching`)
+     - `error_type: ErrorType` (e.g., `json_structure`, `file_path`, `no_match`, `multiple_matches`)
      - `severity: ErrorSeverity` (`error`, `warning`)
      - `message: str`
-     - `details: Optional[Dict]` (e.g., `match_count`)
+     - `details: Optional[Dict]` (e.g., `match_count` for `multiple_matches`)
    - **Validation**: Valid enums, non-empty `message`, `details` defaults to `{}`.
 
 2. **ApplydirChanges (Pydantic)**:
@@ -98,7 +98,7 @@ use_temp_files: true
    - **Purpose**: Match `original_lines` using `difflib`.
    - **Attributes**: `similarity_threshold: float`, `max_search_lines: Optional[int]`.
    - **Methods**: `match(file_content: List[str], change: ApplydirFileChange) -> Union[Dict, List[ApplydirError]]`
-   - **Error Handling**: Returns `ApplydirError` for no matches or multiple matches, including `match_count`.
+   - **Error Handling**: Returns `ApplydirError` with `error_type=NO_MATCH` for no matches or `MULTIPLE_MATCHES` for multiple matches, including `match_count` in `details`.
 
 5. **ApplydirApplicator**:
    - **Purpose**: Apply changes using `ApplydirFileChange` and `ApplydirMatcher`.
@@ -115,7 +115,7 @@ use_temp_files: true
    - **Inputs**: `file_content: List[str]`
    - **Output**: `int` (min k) or error.
    - **Logic**: Check k=1, 2, 3, etc., until all k-line windows are unique.
-   - **Usage**: Called by `vibedir` for multiple matches.
+   - **Usage**: Called by `vibedir` for `MULTIPLE_MATCHES` errors.
 
 ## CLI Utility
 ```bash
@@ -128,7 +128,8 @@ applydir changes.json --base-dir /path/to/project --no-allow-file-deletion --no-
 - `changes_empty`: Empty `changes` for `"replace_lines"` or `"create_file"`.
 - `syntax`: Invalid `changed_lines` syntax.
 - `empty_changed_lines`: Empty `changed_lines`.
-- `matching`: No/multiple matches for `original_lines`.
+- `no_match`: No matches for `original_lines`.
+- `multiple_matches`: Multiple matches for `original_lines`.
 - `file_system`: File operation errors.
 - `linting`: Linting errors (via `vibedir`).
 - `configuration`: Invalid config (e.g., deletion disabled).
@@ -138,10 +139,10 @@ applydir changes.json --base-dir /path/to/project --no-allow-file-deletion --no-
 [
   {
     "change": {"file": "src/main.py", "original_lines": ["..."], "changed_lines": ["..."]},
-    "error_type": "matching",
+    "error_type": "multiple_matches",
     "severity": "error",
-    "message": "Multiple matches found",
-    "details": {"match_count": 3}
+    "message": "Multiple matches found for original_lines",
+    "details": {"file": "src/main.py", "match_count": 3}
   }
 ]
 ```
@@ -157,6 +158,6 @@ See Workflow in `applydir_design_overview_20250815.md`.
 - **dynaconf**: Configuration merging.
 
 ## Next Steps
-- Test new actions and multiple-match handling.
-- Integrate `vibedir.min_context.calculate_min_context` for multiple matches.
+- Test new `no_match` and `multiple_matches` error types.
+- Integrate `vibedir.min_context.calculate_min_context` for `multiple_matches` errors.
 - Implement `vibedir`’s diff view for `"delete_file"`.

@@ -12,14 +12,13 @@ class ApplydirMatcher:
 
     def match(self, file_content: List[str], change: ApplydirFileChange) -> Union[Dict, List[ApplydirError]]:
         """Matches original_lines in file_content."""
-
         matches = []
         n = len(file_content)
         m = len(change.original_lines)
 
         # Check all possible windows of size m
         for i in range(n - m + 1):
-            matcher = SequenceMatcher(None, file_content[i : i + m], change.original_lines)
+            matcher = SequenceMatcher(None, file_content[i:i + m], change.original_lines)
             if matcher.ratio() >= self.similarity_threshold:
                 matches.append({"start": i, "end": i + m})
 
@@ -27,7 +26,7 @@ class ApplydirMatcher:
             return [
                 ApplydirError(
                     change=change,
-                    error_type=ErrorType.MATCHING,
+                    error_type=ErrorType.NO_MATCH,
                     severity=ErrorSeverity.ERROR,
                     message="No matching lines found",
                     details={"file": change.file},
@@ -37,7 +36,7 @@ class ApplydirMatcher:
             return [
                 ApplydirError(
                     change=change,
-                    error_type=ErrorType.MATCHING,
+                    error_type=ErrorType.MULTIPLE_MATCHES,
                     severity=ErrorSeverity.ERROR,
                     message="Multiple matches found for original_lines",
                     details={"file": change.file, "match_count": len(matches)},
