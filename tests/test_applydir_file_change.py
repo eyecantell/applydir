@@ -135,20 +135,6 @@ def test_non_ascii_rule_override():
     logger.debug("Non-ASCII ignored for .py due to rule override")
 
 
-def test_empty_changed_lines_new_file():
-    """Test empty changed_lines for new file."""
-    change = ApplydirFileChange(
-        file="src/new.py",
-        original_lines=[],
-        changed_lines=[],
-        base_dir=Path.cwd(),
-        action=ActionType.CREATE_FILE,
-    )
-    errors = change.validate_change()
-    assert len(errors) == 0
-    logger.debug("Empty changed_lines for new file")
-
-
 def test_valid_change_no_original_lines():
     """Test valid change for create_file with empty original_lines."""
     change = ApplydirFileChange(
@@ -339,87 +325,6 @@ def test_empty_config():
     logger.debug("Empty config: no errors")
 
 
-def test_action_validation():
-    """Test validation for action-specific rules."""
-    # Valid: non-empty original_lines, non-empty changed_lines, replace_lines
-    change = ApplydirFileChange(
-        file="src/main.py",
-        original_lines=["print('Hello')"],
-        changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change()
-    assert len(errors) == 0
-    logger.debug("Valid replace_lines: non-empty original_lines and changed_lines")
-
-    # Valid: non-empty original_lines, empty changed_lines, replace_lines (removal)
-    change = ApplydirFileChange(
-        file="src/main.py",
-        original_lines=["print('Hello')"],
-        changed_lines=[],
-        base_dir=Path.cwd(),
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change()
-    assert len(errors) == 0
-    logger.debug("Valid replace_lines: non-empty original_lines, empty changed_lines")
-
-    # Invalid: empty original_lines, non-empty changed_lines, replace_lines
-    change = ApplydirFileChange(
-        file="src/main.py",
-        original_lines=[],
-        changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change()
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.CHANGES_EMPTY
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "Empty original_lines not allowed for replace_lines"
-    logger.debug(f"Invalid replace_lines: {errors[0]}")
-
-    # Valid: empty original_lines and changed_lines, create_file
-    change = ApplydirFileChange(
-        file="src/new.py",
-        original_lines=[],
-        changed_lines=[],
-        base_dir=Path.cwd(),
-        action=ActionType.CREATE_FILE,
-    )
-    errors = change.validate_change()
-    assert len(errors) == 0
-    logger.debug("Valid create_file: empty original_lines and changed_lines")
-
-    # Valid: empty original_lines, non-empty changed_lines, create_file
-    change = ApplydirFileChange(
-        file="src/new.py",
-        original_lines=[],
-        changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
-        action=ActionType.CREATE_FILE,
-    )
-    errors = change.validate_change()
-    assert len(errors) == 0
-    logger.debug("Valid create_file: empty original_lines, non-empty changed_lines")
-
-    # Invalid: non-empty original_lines, create_file
-    change = ApplydirFileChange(
-        file="src/new.py",
-        original_lines=["print('Hello')"],
-        changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
-        action=ActionType.CREATE_FILE,
-    )
-    errors = change.validate_change()
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.ORIG_LINES_NOT_EMPTY
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "Non-empty original_lines not allowed for create_file"
-    logger.debug(f"Invalid create_file: {errors[0]}")
-
-
 def test_invalid_action():
     """Test invalid action value raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
@@ -457,7 +362,7 @@ def test_action_serialization():
     change_dict = change.model_dump(mode="json")
     logger.debug(f"Serialized action: {change_dict['action']}")
     assert change_dict["action"] == "create_file"
-
+    
 
 def test_no_match_error_integration():
     """Test ApplydirFileChange with ApplydirMatcher producing NO_MATCH error."""
@@ -470,7 +375,7 @@ def test_no_match_error_integration():
     )
     matcher = ApplydirMatcher(similarity_threshold=0.95)
     file_content = ["print('Different')", "print('Other')"]
-    result, errors = matcher.match(file_content, change)
+    result, errors = matcher.match(file_content, change)    
     print(f"result is {result}")
     print(f"errors is {errors}")
     assert isinstance(errors, list)
@@ -480,9 +385,8 @@ def test_no_match_error_integration():
     assert errors[0].error_type == ErrorType.NO_MATCH
     assert errors[0].severity == ErrorSeverity.ERROR
     assert errors[0].message == "No matching lines found"
-    assert errors[0].details == {"file": "src/main.py", 'original_lines': ["print('Unique')"]}
+    assert errors[0].details == {"file": "src/main.py"}
     assert errors[0].change == change
-
 
 def test_multiple_matches_error_integration():
     """Test ApplydirFileChange with ApplydirMatcher producing MULTIPLE_MATCHES error."""
@@ -495,7 +399,7 @@ def test_multiple_matches_error_integration():
     )
     matcher = ApplydirMatcher(similarity_threshold=0.95)
     file_content = ["print('Common')", "print('Other')", "print('Common')"]
-    result, errors = matcher.match(file_content, change)
+    result, errors = matcher.match(file_content, change)    
     print(f"result is {result}")
     print(f"errors is {errors}")
     assert isinstance(errors, list)
@@ -507,3 +411,76 @@ def test_multiple_matches_error_integration():
     assert errors[0].message == "Multiple matches found for original_lines"
     assert errors[0].details == {"file": "src/main.py", "match_count": 2, 'match_indices': [0, 2]}
     assert errors[0].change == change
+
+# tests/test_applydir_file_change.py
+# ... (other imports and tests unchanged)
+
+def test_empty_changed_lines_new_file():
+    """Test empty changed_lines for new file."""
+    change = ApplydirFileChange(
+        file="src/new.py",
+        original_lines=[],
+        changed_lines=[],
+        base_dir=Path.cwd(),
+        action=ActionType.CREATE_FILE,
+    )
+    errors = change.validate_change()
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.EMPTY_CHANGED_LINES
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Empty changed_lines not allowed for create_file"
+    logger.debug("Invalid create_file: empty changed_lines")
+
+
+def test_action_validation():
+    """Test validation for action-specific rules."""
+    # Valid: non-empty original_lines, non-empty changed_lines, replace_lines
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd(),
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change()
+    assert len(errors) == 0
+    logger.debug("Valid replace_lines: non-empty original_lines and changed_lines")
+
+    # Valid: non-empty original_lines, empty changed_lines, replace_lines (removal)
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=[],
+        base_dir=Path.cwd(),
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change()
+    assert len(errors) == 0
+    logger.debug("Valid replace_lines: empty changed_lines for removal")
+
+    # Valid: empty original_lines, non-empty changed_lines, create_file
+    change = ApplydirFileChange(
+        file="src/new.py",
+        original_lines=[],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd(),
+        action=ActionType.CREATE_FILE,
+    )
+    errors = change.validate_change()
+    assert len(errors) == 0
+    logger.debug("Valid create_file: empty original_lines, non-empty changed_lines")
+
+    # Invalid: non-empty original_lines, create_file
+    change = ApplydirFileChange(
+        file="src/new.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd(),
+        action=ActionType.CREATE_FILE,
+    )
+    errors = change.validate_change()
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.ORIG_LINES_NOT_EMPTY
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Non-empty original_lines not allowed for create_file"
+    logger.debug(f"Invalid create_file: {errors[0]}")

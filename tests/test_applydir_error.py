@@ -164,7 +164,7 @@ def test_no_match_error():
     assert errors[0].error_type == ErrorType.NO_MATCH
     assert errors[0].severity == ErrorSeverity.ERROR
     assert errors[0].message == "No matching lines found"
-    assert errors[0].details == {"file": "src/main.py", "original_lines": ["print('Unique')"]}
+    assert errors[0].details == {"file": "src/main.py"}
     assert errors[0].change == change
     assert result is None
     logger.debug(f"No match error: {errors[0]}")

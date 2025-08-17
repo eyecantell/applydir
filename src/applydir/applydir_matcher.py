@@ -3,6 +3,7 @@ from typing import List, Dict, Optional, Tuple
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from .applydir_file_change import ApplydirFileChange, ActionType
 import logging
+import re
 
 logger = logging.getLogger("applydir")
 
@@ -53,12 +54,21 @@ class ApplydirMatcher:
         m = len(change.original_lines)
         search_limit = min(n - m + 1, self.max_search_lines) if self.max_search_lines else n - m + 1
 
+        # Normalize lines: remove all whitespace for comparison
+        def normalize(line: str) -> str:
+            return re.sub(r'\s+', '', line.strip())
+        
+        normalized_original = [normalize(line) for line in change.original_lines]
+        normalized_content = [normalize(line) for line in file_content]
+        logger.debug(f"Normalized original_lines: {normalized_original}")
+        logger.debug(f"Normalized file_content: {normalized_content}")
+
         # Check all possible windows of size m
         for i in range(search_limit):
-            window = file_content[i : i + m]
-            matcher = SequenceMatcher(None, window, change.original_lines)
+            window = normalized_content[i : i + m]
+            matcher = SequenceMatcher(None, window, normalized_original)
             ratio = matcher.ratio()
-            logger.debug(f"Match attempt at index {i} for {change.file}, ratio: {ratio}")
+            logger.debug(f"Match attempt at index {i} for {change.file}, ratio: {ratio}, window: {window}")
             if ratio >= self.similarity_threshold:
                 matches.append({"start": i, "end": i + m})
 
@@ -70,7 +80,7 @@ class ApplydirMatcher:
                     error_type=ErrorType.NO_MATCH,
                     severity=ErrorSeverity.ERROR,
                     message="No matching lines found",
-                    details={"file": str(change.file), "original_lines": change.original_lines},
+                    details={"file": str(change.file)},
                 )
             )
             return None, errors

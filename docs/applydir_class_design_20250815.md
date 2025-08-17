@@ -97,7 +97,7 @@ use_temp_files: true
 4. **ApplydirMatcher**:
    - **Purpose**: Match `original_lines` using `difflib`.
    - **Attributes**: `similarity_threshold: float`, `max_search_lines: Optional[int]`.
-   - **Methods**: `match(file_content: List[str], change: ApplydirFileChange) -> Union[Dict, List[ApplydirError]]`
+   - **Methods**: `match(file_content: List[str], change: ApplydirFileChange) -> Tuple[Optional[Dict], List[ApplydirError]]
    - **Error Handling**: Returns `ApplydirError` with `error_type=NO_MATCH` for no matches or `MULTIPLE_MATCHES` for multiple matches, including `match_count` in `details`.
 
 5. **ApplydirApplicator**:
