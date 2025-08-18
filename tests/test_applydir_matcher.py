@@ -217,6 +217,36 @@ def test_match_multi_line_single_match():
     assert len(errors) == 0
     logger.debug(f"Multi-line match found: {result}")
 
+def test_match_replace_lines_fuzzy_match():
+    """Test fuzzy match within similarity threshold."""
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd(),
+        action=ActionType.REPLACE_LINES,
+    )
+    file_lines = ["print('Hello ') ", "x = 1"]  # Extra whitespace
+    matcher = ApplydirMatcher(
+        case_sensitive=False,
+        config={
+            "matching": {
+                "whitespace": {
+                    "default": "collapse",
+                    "rules": [{"extensions": [".py"], "handling": "remove"}]
+                },
+                "similarity": {
+                    "default": 0.95,
+                    "rules": [{"extensions": [".py"], "threshold": 0.8}]
+                }
+            }
+        },
+    )
+    result, errors = matcher.match(file_lines, change)
+    assert result == {"start": 0, "end": 1}
+    assert len(errors) == 0
+    logger.debug(f"Fuzzy match with whitespace: {result}")
+
 def test_match_fuzzy_typos_and_case():
     """Test fuzzy match with typos and case differences."""
     change = ApplydirFileChange(
@@ -227,7 +257,25 @@ def test_match_fuzzy_typos_and_case():
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["Print('Helo')", "x = 1"]  # Case difference and typo
-    matcher = ApplydirMatcher(similarity_threshold=0.6)
+    matcher = ApplydirMatcher(
+        case_sensitive=False,
+        config={
+            "matching": {
+                "whitespace": {
+                    "default": "collapse",
+                    "rules": [{"extensions": [".py"], "handling": "remove"}]
+                },
+                "similarity": {
+                    "default": 0.95,
+                    "rules": [{"extensions": [".py"], "threshold": 0.5}]
+                },
+                "similarity_metric": {
+                    "default": "sequence_matcher",
+                    "rules": [{"extensions": [".py"], "metric": "levenshtein"}]
+                }
+            }
+        },
+    )
     result, errors = matcher.match(file_lines, change)
     assert result == {"start": 0, "end": 1}
     assert len(errors) == 0
