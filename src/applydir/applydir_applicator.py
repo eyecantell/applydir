@@ -23,10 +23,8 @@ class ApplydirApplicator:
     ):
         self.base_dir = Path(base_dir)
         self.changes = changes
-        self.matcher = matcher or ApplydirMatcher()
         self.logger = logger or logging.getLogger("applydir")
         default_config = load_config(namespace="applydir") or {
-            "use_temp_files": True,
             "validation": {"non_ascii": {"default": "warning", "rules": []}},
             "allow_file_deletion": True,
             "matching": {
@@ -39,18 +37,16 @@ class ApplydirApplicator:
         self.config = Dynaconf(settings_files=[default_config], merge_enabled=True)
         if config_override:
             self.config.update(config_override, merge=True)
-        self.temp_dir = self.base_dir / ".applydir_temp" if self.config.get("use_temp_files", True) else self.base_dir
+        self.matcher = matcher or ApplydirMatcher(config=self.config)  # Pass config to matcher
 
     def apply_changes(self) -> List[ApplydirError]:
-        """Applies all changes, writing to temporary or actual files."""
+        """Applies all changes directly to files in base_dir."""
         errors = []
-        if self.config.get("use_temp_files", True) and not self.temp_dir.exists():
-            self.temp_dir.mkdir(parents=True)
         if not self.changes:
             return errors
         for file_entry in self.changes.files:
             file_path = self.base_dir / file_entry.file
-            if file_entry.action == "delete_file":
+            if file_entry.action == ActionType.DELETE_FILE:
                 if not self.config.get("allow_file_deletion", True):
                     errors.append(
                         ApplydirError(
@@ -63,7 +59,7 @@ class ApplydirApplicator:
                     )
                     continue
                 errors.extend(self.delete_file(file_entry.file))
-            elif file_entry.action in ["replace_lines", "create_file"]:
+            elif file_entry.action in [ActionType.REPLACE_LINES, ActionType.CREATE_FILE]:
                 for change in file_entry.changes:
                     errors.extend(self.apply_single_change(file_path, change, self.config))
         return errors
@@ -71,7 +67,6 @@ class ApplydirApplicator:
     def apply_single_change(self, file_path: Path, change: ApplydirFileChange, config: Dict) -> List[ApplydirError]:
         """Applies a single change to a file."""
         errors = []
-        target_path = self.temp_dir / change.file if config.get("use_temp_files", True) else file_path
         try:
             if change.action == ActionType.REPLACE_LINES:
                 if not file_path.exists():
@@ -90,7 +85,7 @@ class ApplydirApplicator:
                 match_result, match_errors = self.matcher.match(file_content, change)
                 errors.extend(match_errors)
                 if match_result:
-                    self.write_changes(target_path, change.changed_lines, match_result)
+                    self.write_changes(file_path, change.changed_lines, match_result)
             elif change.action == ActionType.CREATE_FILE:
                 if file_path.exists():
                     errors.append(
@@ -103,7 +98,7 @@ class ApplydirApplicator:
                         )
                     )
                     return errors
-                self.write_changes(target_path, change.changed_lines, None)
+                self.write_changes(file_path, change.changed_lines, None)
             elif change.action == ActionType.DELETE_FILE:
                 if not config.get("allow_file_deletion", True):
                     errors.append(
@@ -145,8 +140,7 @@ class ApplydirApplicator:
                     )
                 )
                 return errors
-            target_path = self.temp_dir / file_path if self.config.get("use_temp_files", True) else actual_path
-            target_path.unlink()
+            actual_path.unlink()
             self.logger.info(f"Deleted file: {file_path}")
         except Exception as e:
             errors.append(
@@ -164,7 +158,7 @@ class ApplydirApplicator:
         """Writes changed lines to the file."""
         file_path.parent.mkdir(parents=True, exist_ok=True)
         if range:
-            with open(self.base_dir / file_path.relative_to(self.temp_dir), "r", encoding="utf-8") as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read().splitlines()
             content[range["start"]:range["end"]] = changed_lines
         else:

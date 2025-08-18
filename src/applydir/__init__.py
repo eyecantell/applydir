@@ -3,6 +3,7 @@ from .applydir_changes import ApplydirChanges
 from .applydir_file_change import ApplydirFileChange
 from .applydir_matcher import ApplydirMatcher
 from .applydir_applicator import ApplydirApplicator
+from .applydir_distance import levenshtein_distance, levenshtein_similarity
 from .main import main
 
 __all__ = [
@@ -13,6 +14,8 @@ __all__ = [
     "ApplydirFileChange",
     "ApplydirMatcher",
     "ApplydirApplicator",
+    "levenshtein_distance",
+    "levenshtein_similarity",
     "main",
 ]
 

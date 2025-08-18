@@ -4,6 +4,7 @@ from applydir.applydir_applicator import ApplydirApplicator
 from applydir.applydir_file_change import ApplydirFileChange, ActionType
 from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from applydir.applydir_matcher import ApplydirMatcher
+from applydir.applydir_changes import ApplydirChanges, FileEntry
 import logging
 
 logger = logging.getLogger("applydir_test")
@@ -16,13 +17,12 @@ def setup_file(tmp_path):
 
 @pytest.fixture
 def applicator(tmp_path):
-    """Create an ApplydirApplicator instance with direct writes (no temp)."""
+    """Create an ApplydirApplicator instance."""
     return ApplydirApplicator(
         base_dir=str(tmp_path),
         changes=None,
         matcher=ApplydirMatcher(),
-        logger=logger,
-        config_override={"use_temp_files": False}  # Override for direct writes in tests
+        logger=logger
     )
 
 def test_apply_replace_lines_exact(setup_file, applicator):
@@ -41,8 +41,7 @@ def test_apply_replace_lines_exact(setup_file, applicator):
             "whitespace": {"default": "collapse", "rules": [{"extensions": [".py"], "handling": "remove"}]},
             "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": False}]}
         },
-        "allow_file_deletion": False,
-        "use_temp_files": False  # Ensure direct write
+        "allow_file_deletion": False
     }
     errors = applicator.apply_single_change(file_path, change, config)
     assert len(errors) == 0
@@ -67,8 +66,7 @@ def test_apply_replace_lines_fuzzy(setup_file, applicator):
             "similarity_metric": {"default": "sequence_matcher", "rules": [{"extensions": [".py"], "metric": "levenshtein"}]},
             "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": True}]}
         },
-        "allow_file_deletion": False,
-        "use_temp_files": False
+        "allow_file_deletion": False
     }
     errors = applicator.apply_single_change(file_path, change, config)
     assert len(errors) == 0
@@ -85,7 +83,7 @@ def test_apply_create_file(tmp_path, applicator):
         base_dir=tmp_path,
         action=ActionType.CREATE_FILE,
     )
-    config = {"allow_file_deletion": False, "use_temp_files": False}
+    config = {"allow_file_deletion": False}
     errors = applicator.apply_single_change(file_path, change, config)
     assert len(errors) == 0
     assert file_path.exists()
@@ -103,7 +101,7 @@ def test_apply_delete_file(setup_file, applicator):
         base_dir=file_path.parent,
         action=ActionType.DELETE_FILE,
     )
-    config = {"allow_file_deletion": True, "use_temp_files": False}
+    config = {"allow_file_deletion": True}
     errors = applicator.apply_single_change(file_path, change, config)
     assert len(errors) == 0
     assert not file_path.exists()
@@ -120,7 +118,7 @@ def test_apply_delete_file_not_allowed(setup_file, applicator):
         base_dir=file_path.parent,
         action=ActionType.DELETE_FILE,
     )
-    config = {"allow_file_deletion": False, "use_temp_files": False}
+    config = {"allow_file_deletion": False}
     errors = applicator.apply_single_change(file_path, change, config)
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.PERMISSION_DENIED
@@ -145,8 +143,7 @@ def test_apply_replace_lines_no_match(setup_file, applicator):
             "whitespace": {"default": "collapse", "rules": [{"extensions": [".py"], "handling": "remove"}]},
             "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": True}]}
         },
-        "allow_file_deletion": False,
-        "use_temp_files": False
+        "allow_file_deletion": False
     }
     errors = applicator.apply_single_change(file_path, change, config)
     assert len(errors) == 1
@@ -172,8 +169,7 @@ def test_apply_replace_lines_multiple_matches(setup_file, applicator):
             "whitespace": {"default": "collapse", "rules": [{"extensions": [".py"], "handling": "remove"}]},
             "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": False}]}
         },
-        "allow_file_deletion": False,
-        "use_temp_files": False
+        "allow_file_deletion": False
     }
     errors = applicator.apply_single_change(file_path, change, config)
     assert len(errors) == 1
@@ -198,8 +194,7 @@ def test_apply_file_not_found(tmp_path, applicator):
             "whitespace": {"default": "collapse", "rules": [{"extensions": [".py"], "handling": "remove"}]},
             "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": True}]}
         },
-        "allow_file_deletion": False,
-        "use_temp_files": False
+        "allow_file_deletion": False
     }
     errors = applicator.apply_single_change(file_path, change, config)
     assert len(errors) == 1
@@ -220,18 +215,14 @@ def test_apply_replace_lines_non_ascii_error(setup_file, applicator):
         base_dir=file_path.parent,
         action=ActionType.REPLACE_LINES,
     )
-    # Note: Non-ASCII validation happens in change.validate_content, but applicator calls it indirectly via apply_changes.
-    # For single_change test, we need to call validate first.
     config = {
         "validation": {"non_ascii": {"default": "error", "rules": [{"extensions": [".py"], "action": "error"}]}},
-        "use_temp_files": False
     }
-    errors = change.validate_content(config.get("validation", {}))
+    errors = change.validate_change(config.get("validation", {}))
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.ERROR
     assert "Non-ASCII characters found" in errors[0].message
-    # Don't apply if validation fails (in real flow)
     logger.debug(f"Non-ASCII error: {errors[0].message}")
 
 def test_apply_replace_lines_multiple_matches_no_fuzzy(setup_file, applicator):
@@ -249,8 +240,51 @@ def test_apply_replace_lines_multiple_matches_no_fuzzy(setup_file, applicator):
         "matching": {
             "use_fuzzy": {"default": False}
         },
-        "use_temp_files": False
     }
     errors = applicator.apply_single_change(file_path, change, config)
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.MULTIPLE_MATCHES
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert "Multiple matches found" in errors[0].message
+    assert file_path.read_text() == "print('Hello')\nprint('Hello')\n"
+    logger.debug(f"Multiple matches no fuzzy error: {errors[0].message}")
+
+def test_apply_multiple_files(tmp_path, applicator):
+    """Test applying changes to multiple files (replace, create, delete)."""
+    file1 = tmp_path / "file1.py"
+    file2 = tmp_path / "file2.py"
+    file3 = tmp_path / "file3.py"
+    file1.write_text("print('Old')\n")
+    file2.write_text("x = 1\n")
+    
+    changes = ApplydirChanges(files=[
+        FileEntry(
+            file="file1.py",
+            action=ActionType.REPLACE_LINES,
+            changes=[{
+                "original_lines": ["print('Old')"],
+                "changed_lines": ["print('New')"]
+            }]
+        ),
+        FileEntry(
+            file="file2.py",
+            action=ActionType.DELETE_FILE
+        ),
+        FileEntry(
+            file="file3.py",
+            action=ActionType.CREATE_FILE,
+            changes=[{
+                "original_lines": [],
+                "changed_lines": ["print('Created')"]
+            }]
+        )
+    ])
+    applicator.changes = changes
+    val_errors = changes.validate_changes(base_dir=str(tmp_path))
+    assert len(val_errors) == 0
+    app_errors = applicator.apply_changes()
+    assert len(app_errors) == 0
+    assert file1.read_text() == "print('New')\n"
+    assert not file2.exists()
+    assert file3.read_text() == "print('Created')\n"
+    logger.debug("Applied multi-file changes: replace, delete, create")

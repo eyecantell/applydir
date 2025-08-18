@@ -12,5 +12,4 @@ validation:
         action: ignore
       - extensions: [".json", ".yaml"]
         action: warning
-  allow_file_deletion: true  # Enable/disable file deletion
-use_temp_files: true
+  allow_file_deletion: true

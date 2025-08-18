@@ -8,7 +8,6 @@ from .applydir_matcher import ApplydirMatcher
 from .applydir_applicator import ApplydirApplicator
 from .applydir_error import ApplydirError
 
-
 def main():
     """CLI entry point for applydir utility."""
     parser = argparse.ArgumentParser(description="Applydir: Apply LLM-generated changes to a codebase.")
@@ -17,7 +16,6 @@ def main():
         "--base-dir", type=str, default=".", help="Base directory for file paths (default: current directory)"
     )
     parser.add_argument("--no-allow-file-deletion", action="store_true", help="Disable file deletion")
-    parser.add_argument("--no-temp-files", action="store_true", help="Write changes directly to actual files")
     parser.add_argument(
         "--non-ascii-action",
         choices=["error", "warning", "ignore"],
@@ -37,8 +35,6 @@ def main():
     config_override = {
         "allow_file_deletion": not args.no_allow_file_deletion,
     }
-    if args.no_temp_files:
-        config_override["use_temp_files"] = False
     if args.non_ascii_action:
         config_override["validation"] = {"non_ascii": {"default": args.non_ascii_action}}
 
@@ -82,7 +78,6 @@ def main():
     except Exception as e:
         logger.error(f"Application failed: {str(e)}")
         return 1
-
 
 if __name__ == "__main__":
     exit(main())

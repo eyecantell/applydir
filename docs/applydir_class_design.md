@@ -55,7 +55,6 @@ validation:
       - extensions: [".json", ".yaml"]
         action: warning
   allow_file_deletion: true
-use_temp_files: true
 matching:
   whitespace:
     default: collapse
@@ -149,7 +148,7 @@ matching:
 
 ## CLI Utility
 ```bash
-applydir changes.json --base-dir /path/to/project --no-allow-file-deletion --no-temp-files --non-ascii-action=error --log-level=DEBUG
+applydir changes.json --base-dir /path/to/project --no-allow-file-deletion --non-ascii-action=error --log-level=DEBUG
 ```
 
 ## Error Types

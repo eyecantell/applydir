@@ -2,33 +2,12 @@ from difflib import SequenceMatcher
 from typing import List, Dict, Optional, Tuple
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from .applydir_file_change import ApplydirFileChange, ActionType
+from .applydir_distance import levenshtein_similarity
 import logging
 import re
 from pathlib import Path
 
 logger = logging.getLogger("applydir")
-
-def levenshtein_similarity(a: List[str], b: List[str]) -> float:
-    """Calculate Levenshtein-based similarity for two lists of strings."""
-    def levenshtein(s1: str, s2: str) -> int:
-        if len(s1) < len(s2):
-            return levenshtein(s2, s1)
-        if not s2:
-            return len(s1)
-        previous_row = range(len(s2) + 1)
-        for i, c1 in enumerate(s1):
-            current_row = [i + 1]
-            for j, c2 in enumerate(s2):
-                insertions = previous_row[j + 1] + 1
-                deletions = current_row[j] + 1
-                substitutions = previous_row[j] + (c1 != c2)
-                current_row.append(min(insertions, deletions, substitutions))
-            previous_row = current_row
-        return previous_row[-1]
-    
-    total_distance = sum(levenshtein(a[i], b[i]) for i in range(min(len(a), len(b))))
-    max_length = max(sum(len(s) for s in a), sum(len(s) for s in b))
-    return 1.0 - total_distance / max_length if max_length > 0 else 1.0
 
 class ApplydirMatcher:
     """Matches original_lines in file content using exact and optional fuzzy matching."""
