@@ -6,8 +6,10 @@ from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from applydir.applydir_matcher import ApplydirMatcher
 from applydir.applydir_changes import ApplydirChanges, FileEntry
 import logging
+from prepdir import configure_logging
 
 logger = logging.getLogger("applydir_test")
+configure_logging(logger, level=logging.DEBUG)
 
 @pytest.fixture
 def setup_file(tmp_path):
@@ -268,7 +270,8 @@ def test_apply_multiple_files(tmp_path, applicator):
         ),
         FileEntry(
             file="file2.py",
-            action=ActionType.DELETE_FILE
+            action=ActionType.DELETE_FILE,
+            changes=[]
         ),
         FileEntry(
             file="file3.py",

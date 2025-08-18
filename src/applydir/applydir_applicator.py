@@ -37,7 +37,7 @@ class ApplydirApplicator:
         self.config = Dynaconf(settings_files=[default_config], merge_enabled=True)
         if config_override:
             self.config.update(config_override, merge=True)
-        self.matcher = matcher or ApplydirMatcher(config=self.config)  # Pass config to matcher
+        self.matcher = matcher or ApplydirMatcher(config=self.config)
 
     def apply_changes(self) -> List[ApplydirError]:
         """Applies all changes directly to files in base_dir."""
@@ -61,6 +61,21 @@ class ApplydirApplicator:
                 errors.extend(self.delete_file(file_entry.file))
             elif file_entry.action in [ActionType.REPLACE_LINES, ActionType.CREATE_FILE]:
                 for change in file_entry.changes:
+                    # Ensure change is an ApplydirFileChange object
+                    if isinstance(change, dict):
+                        try:
+                            change = ApplydirFileChange(**change, file=file_entry.file, base_dir=self.base_dir, action=file_entry.action)
+                        except Exception as e:
+                            errors.append(
+                                ApplydirError(
+                                    change=None,
+                                    error_type=ErrorType.INVALID_CHANGE,
+                                    severity=ErrorSeverity.ERROR,
+                                    message=f"Failed to convert change to ApplydirFileChange: {str(e)}",
+                                    details={"file": file_entry.file},
+                                )
+                            )
+                            continue
                     errors.extend(self.apply_single_change(file_path, change, self.config))
         return errors
 
@@ -68,6 +83,14 @@ class ApplydirApplicator:
         """Applies a single change to a file."""
         errors = []
         try:
+            # Validate change first
+            validation_errors = change.validate_change(config.get("validation", {}))
+            errors.extend(validation_errors)
+            if validation_errors:
+                return errors
+
+            # Use a new matcher with the provided config
+            matcher = ApplydirMatcher(config=config)
             if change.action == ActionType.REPLACE_LINES:
                 if not file_path.exists():
                     errors.append(
@@ -82,7 +105,7 @@ class ApplydirApplicator:
                     return errors
                 with open(file_path, "r", encoding="utf-8") as f:
                     file_content = f.read().splitlines()
-                match_result, match_errors = self.matcher.match(file_content, change)
+                match_result, match_errors = matcher.match(file_content, change)
                 errors.extend(match_errors)
                 if match_result:
                     self.write_changes(file_path, change.changed_lines, match_result)
