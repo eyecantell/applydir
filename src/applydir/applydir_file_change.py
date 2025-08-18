@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 class ActionType(str, Enum):
     REPLACE_LINES = "replace_lines"
     CREATE_FILE = "create_file"
+    DELETE_FILE = "delete_file"
 
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
@@ -97,16 +98,28 @@ class ApplydirFileChange(BaseModel):
                         message="Empty changed_lines not allowed for create_file",
                     )
                 )
-        elif self.action == ActionType.REPLACE_LINES and not self.original_lines:
-            errors.append(
-                ApplydirError(
-                    change=self,
-                    error_type=ErrorType.ORIG_LINES_EMPTY,
-                    severity=ErrorSeverity.ERROR,
-                    message="Empty original_lines not allowed for replace_lines",
-                    details={"file": self.file},
+        elif self.action == ActionType.REPLACE_LINES:
+            if not self.original_lines:
+                errors.append(
+                    ApplydirError(
+                        change=self,
+                        error_type=ErrorType.ORIG_LINES_EMPTY,
+                        severity=ErrorSeverity.ERROR,
+                        message="Empty original_lines not allowed for replace_lines",
+                        details={"file": self.file},
+                    )
                 )
-            )
+        elif self.action == ActionType.DELETE_FILE:
+            if self.original_lines or self.changed_lines:
+                errors.append(
+                    ApplydirError(
+                        change=self,
+                        error_type=ErrorType.INVALID_CHANGE,
+                        severity=ErrorSeverity.ERROR,
+                        message="original_lines and changed_lines must be empty for delete_file",
+                        details={"file": self.file},
+                    )
+                )
 
         # Determine non-ASCII action based on file extension
         non_ascii_action = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()

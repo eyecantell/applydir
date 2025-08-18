@@ -1,34 +1,40 @@
 import logging
 from .applydir_changes import ApplydirChanges
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
-from .applydir_file_change import ApplydirFileChange
+from .applydir_file_change import ApplydirFileChange, ActionType
 from .applydir_matcher import ApplydirMatcher
 from dynaconf import Dynaconf
 from pathlib import Path
 from prepdir import load_config
 from typing import List, Optional, Dict
 
+logger = logging.getLogger("applydir")
 
 class ApplydirApplicator:
     """Applies validated changes to files."""
 
     def __init__(
         self,
-        base_dir: str,
-        changes: ApplydirChanges,
-        matcher: ApplydirMatcher,
-        logger: logging.Logger,
+        base_dir: str = ".",
+        changes: Optional[ApplydirChanges] = None,
+        matcher: Optional[ApplydirMatcher] = None,
+        logger: Optional[logging.Logger] = None,
         config_override: Optional[Dict] = None,
     ):
         self.base_dir = Path(base_dir)
         self.changes = changes
-        self.matcher = matcher
-        self.logger = logger
-        # Load default config and apply overrides
+        self.matcher = matcher or ApplydirMatcher()
+        self.logger = logger or logging.getLogger("applydir")
         default_config = load_config(namespace="applydir") or {
             "use_temp_files": True,
             "validation": {"non_ascii": {"default": "warning", "rules": []}},
             "allow_file_deletion": True,
+            "matching": {
+                "whitespace": {"default": "collapse"},
+                "similarity": {"default": 0.95},
+                "similarity_metric": {"default": "sequence_matcher"},
+                "use_fuzzy": {"default": True},
+            },
         }
         self.config = Dynaconf(settings_files=[default_config], merge_enabled=True)
         if config_override:
@@ -40,13 +46,16 @@ class ApplydirApplicator:
         errors = []
         if self.config.get("use_temp_files", True) and not self.temp_dir.exists():
             self.temp_dir.mkdir(parents=True)
+        if not self.changes:
+            return errors
         for file_entry in self.changes.files:
+            file_path = self.base_dir / file_entry.file
             if file_entry.action == "delete_file":
                 if not self.config.get("allow_file_deletion", True):
                     errors.append(
                         ApplydirError(
                             change=None,
-                            error_type=ErrorType.CONFIGURATION,
+                            error_type=ErrorType.PERMISSION_DENIED,
                             severity=ErrorSeverity.ERROR,
                             message="File deletion is disabled in configuration",
                             details={"file": file_entry.file},
@@ -56,50 +65,58 @@ class ApplydirApplicator:
                 errors.extend(self.delete_file(file_entry.file))
             elif file_entry.action in ["replace_lines", "create_file"]:
                 for change in file_entry.changes:
-                    errors.extend(self.apply_single_change(change))
+                    errors.extend(self.apply_single_change(file_path, change, self.config))
         return errors
 
-    def apply_single_change(self, change: ApplydirFileChange) -> List[ApplydirError]:
+    def apply_single_change(self, file_path: Path, change: ApplydirFileChange, config: Dict) -> List[ApplydirError]:
         """Applies a single change to a file."""
         errors = []
-        file_path = (
-            self.temp_dir / change.file if self.config.get("use_temp_files", True) else self.base_dir / change.file
-        )
+        target_path = self.temp_dir / change.file if config.get("use_temp_files", True) else file_path
         try:
-            if change.original_lines:  # replace_lines
-                # Existing file: Match and replace
-                if not (self.base_dir / change.file).exists():
+            if change.action == ActionType.REPLACE_LINES:
+                if not file_path.exists():
                     errors.append(
                         ApplydirError(
                             change=change,
-                            error_type=ErrorType.FILE_SYSTEM,
+                            error_type=ErrorType.FILE_PATH,
                             severity=ErrorSeverity.ERROR,
                             message="File does not exist for modification",
-                            details={"file": change.file},
+                            details={"file": str(change.file)},
                         )
                     )
                     return errors
-                with open(self.base_dir / change.file, "r") as f:
-                    file_content = f.readlines()
-                match_result = self.matcher.match(file_content, change)
-                if isinstance(match_result, list):
-                    errors.extend(match_result)
-                    return errors
-                self.write_changes(file_path, change.changed_lines, match_result)
-            else:  # create_file
-                # New file: Ensure path doesn’t exist
-                if (self.base_dir / change.file).exists():
+                with open(file_path, "r", encoding="utf-8") as f:
+                    file_content = f.read().splitlines()
+                match_result, match_errors = self.matcher.match(file_content, change)
+                errors.extend(match_errors)
+                if match_result:
+                    self.write_changes(target_path, change.changed_lines, match_result)
+            elif change.action == ActionType.CREATE_FILE:
+                if file_path.exists():
                     errors.append(
                         ApplydirError(
                             change=change,
-                            error_type=ErrorType.FILE_SYSTEM,
+                            error_type=ErrorType.FILE_ALREADY_EXISTS,
                             severity=ErrorSeverity.ERROR,
                             message="File already exists for new file creation",
-                            details={"file": change.file},
+                            details={"file": str(change.file)},
                         )
                     )
                     return errors
-                self.write_changes(file_path, change.changed_lines, None)
+                self.write_changes(target_path, change.changed_lines, None)
+            elif change.action == ActionType.DELETE_FILE:
+                if not config.get("allow_file_deletion", True):
+                    errors.append(
+                        ApplydirError(
+                            change=change,
+                            error_type=ErrorType.PERMISSION_DENIED,
+                            severity=ErrorSeverity.ERROR,
+                            message="File deletion is disabled in configuration",
+                            details={"file": str(change.file)},
+                        )
+                    )
+                    return errors
+                errors.extend(self.delete_file(change.file))
         except Exception as e:
             errors.append(
                 ApplydirError(
@@ -107,7 +124,7 @@ class ApplydirApplicator:
                     error_type=ErrorType.FILE_SYSTEM,
                     severity=ErrorSeverity.ERROR,
                     message=f"File operation failed: {str(e)}",
-                    details={"file": change.file},
+                    details={"file": str(change.file)},
                 )
             )
         return errors
@@ -121,18 +138,15 @@ class ApplydirApplicator:
                 errors.append(
                     ApplydirError(
                         change=None,
-                        error_type=ErrorType.FILE_SYSTEM,
+                        error_type=ErrorType.FILE_PATH,
                         severity=ErrorSeverity.ERROR,
                         message="File does not exist for deletion",
                         details={"file": file_path},
                     )
                 )
                 return errors
-            temp_path = self.temp_dir / file_path if self.config.get("use_temp_files", True) else actual_path
-            if temp_path.exists():
-                temp_path.unlink()
-            else:
-                actual_path.unlink()
+            target_path = self.temp_dir / file_path if self.config.get("use_temp_files", True) else actual_path
+            target_path.unlink()
             self.logger.info(f"Deleted file: {file_path}")
         except Exception as e:
             errors.append(
@@ -150,11 +164,10 @@ class ApplydirApplicator:
         """Writes changed lines to the file."""
         file_path.parent.mkdir(parents=True, exist_ok=True)
         if range:
-            with open(self.base_dir / file_path.relative_to(self.temp_dir), "r") as f:
-                content = f.readlines()
-            content[range["start"] : range["end"]] = changed_lines
-            with open(file_path, "w") as f:
-                f.writelines(content)
+            with open(self.base_dir / file_path.relative_to(self.temp_dir), "r", encoding="utf-8") as f:
+                content = f.read().splitlines()
+            content[range["start"]:range["end"]] = changed_lines
         else:
-            with open(file_path, "w") as f:
-                f.writelines(changed_lines)
+            content = changed_lines
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(content) + "\n")

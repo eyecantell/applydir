@@ -336,7 +336,7 @@ def test_invalid_action():
             action="invalid_action",
         )
     logger.debug(f"Validation error for invalid action: {exc_info.value}")
-    assert "Input should be 'replace_lines' or 'create_file'" in str(exc_info.value)
+    assert "Input should be 'replace_lines', 'create_file' or 'delete_file'" in str(exc_info.value)
 
 
 def test_action_serialization():

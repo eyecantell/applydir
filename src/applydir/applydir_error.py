@@ -7,33 +7,35 @@ class ErrorSeverity(str, Enum):
     WARNING = "warning"
 
 class ErrorType(str, Enum):
-    JSON_STRUCTURE = "json_structure"
-    FILE_PATH = "file_path"
     CHANGES_EMPTY = "changes_empty"
-    ORIG_LINES_NOT_EMPTY = "orig_lines_not_empty"
-    ORIG_LINES_EMPTY = "orig_lines_empty"
-    SYNTAX = "syntax"
-    EMPTY_CHANGED_LINES = "empty_changed_lines"
-    NO_MATCH = "no_match"
-    MULTIPLE_MATCHES = "multiple_matches"
-    FILE_SYSTEM = "file_system"
-    LINTING = "linting"
     CONFIGURATION = "configuration"
+    EMPTY_CHANGED_LINES = "empty_changed_lines"
+    FILE_PATH = "file_path"
+    FILE_SYSTEM = "file_system"
+    JSON_STRUCTURE = "json_structure"
+    LINTING = "linting"
+    MULTIPLE_MATCHES = "multiple_matches"
+    NO_MATCH = "no_match"
+    ORIG_LINES_EMPTY = "orig_lines_empty"
+    ORIG_LINES_NOT_EMPTY = "orig_lines_not_empty"
+    PERMISSION_DENIED = "permission_denied"
+    SYNTAX = "syntax"
 
     def __str__(self):
         return {
-            ErrorType.JSON_STRUCTURE: "Invalid JSON structure or action",
-            ErrorType.FILE_PATH: "Invalid file path",
             ErrorType.CHANGES_EMPTY: "Empty changes array for replace_lines or create_file",
-            ErrorType.ORIG_LINES_NOT_EMPTY: "Non-empty original_lines not allowed for create_file",
-            ErrorType.ORIG_LINES_EMPTY: "Empty original_lines not allowed for replace_lines",
-            ErrorType.SYNTAX: "Invalid syntax in changed_lines",
-            ErrorType.EMPTY_CHANGED_LINES: "Empty changed_lines for replace_lines or create_file",
-            ErrorType.NO_MATCH: "No matching lines found in file",
-            ErrorType.MULTIPLE_MATCHES: "Multiple matches found for original_lines",
-            ErrorType.FILE_SYSTEM: "File system operation failed",
-            ErrorType.LINTING: "Linting failed on file (handled by vibedir)",
             ErrorType.CONFIGURATION: "Invalid configuration",
+            ErrorType.EMPTY_CHANGED_LINES: "Empty changed_lines for replace_lines or create_file",
+            ErrorType.FILE_PATH: "Invalid file path",
+            ErrorType.FILE_SYSTEM: "File system operation failed",
+            ErrorType.JSON_STRUCTURE: "Invalid JSON structure or action",
+            ErrorType.LINTING: "Linting failed on file (handled by vibedir)",
+            ErrorType.MULTIPLE_MATCHES: "Multiple matches found for original_lines",
+            ErrorType.NO_MATCH: "No matching lines found in file",
+            ErrorType.ORIG_LINES_EMPTY: "Empty original_lines not allowed for replace_lines",
+            ErrorType.ORIG_LINES_NOT_EMPTY: "Non-empty original_lines not allowed for create_file",
+            ErrorType.PERMISSION_DENIED: "Permission denied",
+            ErrorType.SYNTAX: "Invalid syntax in changed_lines",
         }[self]
 
 class ApplydirError(BaseModel):
