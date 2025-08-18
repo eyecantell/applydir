@@ -31,7 +31,7 @@ def levenshtein_similarity(a: List[str], b: List[str]) -> float:
     return 1.0 - total_distance / max_length if max_length > 0 else 1.0
 
 class ApplydirMatcher:
-    """Matches original_lines in file content using fuzzy matching."""
+    """Matches original_lines in file content using exact and optional fuzzy matching."""
 
     def __init__(
         self,
@@ -81,8 +81,20 @@ class ApplydirMatcher:
                 return rule.get("metric", default_metric)
         return default_metric
 
+    def get_use_fuzzy(self, file_path: str) -> bool:
+        """Determine if fuzzy matching should be used based on file extension."""
+        default_use_fuzzy = self.config.get("matching", {}).get("use_fuzzy", {}).get("default", True)
+        if not file_path:
+            return default_use_fuzzy
+        file_extension = Path(file_path).suffix.lower()
+        rules = self.config.get("matching", {}).get("use_fuzzy", {}).get("rules", [])
+        for rule in rules:
+            if file_extension in rule.get("extensions", []):
+                return rule.get("use_fuzzy", default_use_fuzzy)
+        return default_use_fuzzy
+
     def match(self, file_content: List[str], change: ApplydirFileChange) -> Tuple[Optional[Dict], List[ApplydirError]]:
-        """Matches original_lines in file_content, skips for create_file."""
+        """Matches original_lines in file_content, tries exact first, then fuzzy if configured."""
         errors = []
         logger.debug(f"Matching for file: {change.file}, action: {change.action}")
         logger.debug(f"Input file_content: {file_content}")
@@ -126,11 +138,9 @@ class ApplydirMatcher:
 
         # Normalize lines based on whitespace handling
         whitespace_handling = self.get_whitespace_handling(change.file)
-        similarity_threshold = self.get_similarity_threshold(change.file)
-        similarity_metric = self.get_similarity_metric(change.file)
+        use_fuzzy = self.get_use_fuzzy(change.file)
         logger.debug(f"Whitespace handling for {change.file}: {whitespace_handling}")
-        logger.debug(f"Similarity threshold for {change.file}: {similarity_threshold}")
-        logger.debug(f"Similarity metric for {change.file}: {similarity_metric}")
+        logger.debug(f"Use fuzzy matching for {change.file}: {use_fuzzy}")
 
         def normalize(line: str) -> str:
             if whitespace_handling == "strict":
@@ -150,22 +160,35 @@ class ApplydirMatcher:
         logger.debug(f"Normalized original_lines: {normalized_original}")
         logger.debug(f"Normalized file_content: {normalized_content}")
 
-        # Check all possible windows of size m
+        # Exact matching first
+        logger.debug(f"Attempting exact match for {change.file}")
         for i in range(search_limit):
             window = normalized_content[i : i + m]
-            logger.debug(f"Checking window at index {i}: {window} (size: {len(window)})")
-            if len(window) == m:
-                if similarity_metric == "levenshtein":
-                    ratio = levenshtein_similarity(window, normalized_original)
-                    matching_blocks = []
-                else:
-                    matcher = SequenceMatcher(None, window, normalized_original, autojunk=False)
-                    ratio = matcher.ratio()
-                    matching_blocks = matcher.get_matching_blocks()
-                logger.debug(f"Match attempt at index {i} for {change.file}, metric: {similarity_metric}, ratio: {ratio:.4f}, window: {window}, original: {normalized_original}, matching_blocks: {matching_blocks}")
-                if ratio >= similarity_threshold or window == normalized_original:
-                    matches.append({"start": i, "end": i + m})
-                    logger.debug(f"Match found at index {i}, metric: {similarity_metric}, ratio: {ratio:.4f}, exact: {window == normalized_original}")
+            logger.debug(f"Checking exact window at index {i}: {window} (size: {len(window)})")
+            if len(window) == m and window == normalized_original:
+                matches.append({"start": i, "end": i + m})
+                logger.debug(f"Exact match found at index {i} for {change.file}")
+
+        # Fuzzy matching if no exact match and use_fuzzy is True
+        if not matches and use_fuzzy:
+            similarity_threshold = self.get_similarity_threshold(change.file)
+            similarity_metric = self.get_similarity_metric(change.file)
+            logger.debug(f"Fuzzy matching for {change.file}, metric: {similarity_metric}, threshold: {similarity_threshold}")
+            for i in range(search_limit):
+                window = normalized_content[i : i + m]
+                logger.debug(f"Checking fuzzy window at index {i}: {window} (size: {len(window)})")
+                if len(window) == m:
+                    if similarity_metric == "levenshtein":
+                        ratio = levenshtein_similarity(window, normalized_original)
+                        matching_blocks = []
+                    else:
+                        matcher = SequenceMatcher(None, window, normalized_original, autojunk=False)
+                        ratio = matcher.ratio()
+                        matching_blocks = matcher.get_matching_blocks()
+                    logger.debug(f"Fuzzy match attempt at index {i} for {change.file}, metric: {similarity_metric}, ratio: {ratio:.4f}, window: {window}, original: {normalized_original}, matching_blocks: {matching_blocks}")
+                    if ratio >= similarity_threshold:
+                        matches.append({"start": i, "end": i + m})
+                        logger.debug(f"Fuzzy match found at index {i}, metric: {similarity_metric}, ratio: {ratio:.4f}")
 
         if not matches:
             logger.debug(f"No matches found for {change.file}")

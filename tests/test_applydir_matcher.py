@@ -217,6 +217,7 @@ def test_match_multi_line_single_match():
     assert len(errors) == 0
     logger.debug(f"Multi-line match found: {result}")
 
+
 def test_match_replace_lines_fuzzy_match():
     """Test fuzzy match within similarity threshold."""
     change = ApplydirFileChange(
@@ -238,6 +239,14 @@ def test_match_replace_lines_fuzzy_match():
                 "similarity": {
                     "default": 0.95,
                     "rules": [{"extensions": [".py"], "threshold": 0.8}]
+                },
+                "similarity_metric": {
+                    "default": "sequence_matcher",
+                    "rules": [{"extensions": [".py"], "metric": "levenshtein"}]
+                },
+                "use_fuzzy": {
+                    "default": True,
+                    "rules": [{"extensions": [".py"], "use_fuzzy": True}]
                 }
             }
         },
@@ -272,6 +281,10 @@ def test_match_fuzzy_typos_and_case():
                 "similarity_metric": {
                     "default": "sequence_matcher",
                     "rules": [{"extensions": [".py"], "metric": "levenshtein"}]
+                },
+                "use_fuzzy": {
+                    "default": True,
+                    "rules": [{"extensions": [".py"], "use_fuzzy": True}]
                 }
             }
         },
@@ -280,3 +293,33 @@ def test_match_fuzzy_typos_and_case():
     assert result == {"start": 0, "end": 1}
     assert len(errors) == 0
     logger.debug(f"Fuzzy match with typos and case: {result}")
+
+def test_match_exact_only():
+    """Test exact match without fuzzy fallback."""
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd(),
+        action=ActionType.REPLACE_LINES,
+    )
+    file_lines = ["print('Hello')", "x = 1"]  # Exact match
+    matcher = ApplydirMatcher(
+        case_sensitive=False,
+        config={
+            "matching": {
+                "whitespace": {
+                    "default": "collapse",
+                    "rules": [{"extensions": [".py"], "handling": "remove"}]
+                },
+                "use_fuzzy": {
+                    "default": True,
+                    "rules": [{"extensions": [".py"], "use_fuzzy": False}]
+                }
+            }
+        },
+    )
+    result, errors = matcher.match(file_lines, change)
+    assert result == {"start": 0, "end": 1}
+    assert len(errors) == 0
+    logger.debug(f"Exact match only: {result}")
