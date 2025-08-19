@@ -24,6 +24,7 @@ class ErrorType(str, Enum):
     ORIG_LINES_NOT_EMPTY = "orig_lines_not_empty"
     PERMISSION_DENIED = "permission_denied"
     SYNTAX = "syntax"
+    INVALID_CHANGE = "invalid_change"
 
     def __str__(self):
         return {
@@ -43,6 +44,7 @@ class ErrorType(str, Enum):
             ErrorType.ORIG_LINES_NOT_EMPTY: "Non-empty original_lines not allowed for create_file",
             ErrorType.PERMISSION_DENIED: "Permission denied",
             ErrorType.SYNTAX: "Invalid syntax in changed_lines",
+            ErrorType.INVALID_CHANGE: "Invalid change content for the specified action",
         }[self]
 
 class ApplydirError(BaseModel):

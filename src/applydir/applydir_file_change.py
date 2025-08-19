@@ -15,10 +15,9 @@ class ActionType(str, Enum):
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
 
-    file: Optional[str] = None
+    file_path: Path
     original_lines: List[str]
     changed_lines: List[str]
-    base_dir: Optional[Path] = None
     action: ActionType
 
     model_config = ConfigDict(
@@ -26,37 +25,22 @@ class ApplydirFileChange(BaseModel):
         arbitrary_types_allowed=True,  # Allow Path objects
     )
 
-    @field_serializer("base_dir")
-    def serialize_base_dir(self, base_dir: Optional[Path], _info) -> Optional[str]:
-        """Serialize Path as string or None."""
-        return str(base_dir) if base_dir is not None else None
+    @field_serializer("file_path")
+    def serialize_file_path(self, file_path: Path, _info) -> str:
+        """Serialize Path as string."""
+        return str(file_path)
 
     @field_serializer("action")
     def serialize_action(self, action: ActionType, _info) -> str:
         """Serialize ActionType as its string value."""
         return action.value
 
-    @field_validator("file")
+    @field_validator("file_path")
     @classmethod
-    def validate_file_field(cls, v: Optional[str], info: ValidationInfo) -> str:
-        """Ensures the file field is a non-empty string."""
-        if not v:
-            raise ValueError("File path must be non-empty")
-        return v
-
-    @field_validator("file")
-    @classmethod
-    def validate_file_path(cls, v: str, info: ValidationInfo) -> str:
-        """Validates that the file path is resolvable within the project base_dir."""
-        if not v:
-            raise ValueError("File path must be non-empty")
-        base_dir = info.data.get("base_dir") or Path.cwd()
-        try:
-            resolved_path = (base_dir / Path(v)).resolve()
-            if not str(resolved_path).startswith(str(base_dir.resolve())):
-                raise ValueError("File path is outside project directory")
-        except Exception as e:
-            raise ValueError(f"Invalid file path: {str(e)}")
+    def validate_file_path_field(cls, v: Path, info: ValidationInfo) -> Path:
+        """Ensures the file_path is a valid Path object."""
+        if not isinstance(v, Path) or not str(v).strip() or str(v) == '.':
+            raise ValueError("File path must and Path object and be non-empty")
         return v
 
     def validate_change(self, config: Dict = None) -> List[ApplydirError]:
@@ -65,17 +49,6 @@ class ApplydirFileChange(BaseModel):
 
         if config is None:
             config = {}
-
-        # Validate file path
-        if not self.file:
-            errors.append(
-                ApplydirError(
-                    change=self,
-                    error_type=ErrorType.FILE_PATH,
-                    severity=ErrorSeverity.ERROR,
-                    message="No file path specified",
-                )
-            )
 
         # Action-specific validation
         if self.action == ActionType.CREATE_FILE:
@@ -86,7 +59,7 @@ class ApplydirFileChange(BaseModel):
                         error_type=ErrorType.ORIG_LINES_NOT_EMPTY,
                         severity=ErrorSeverity.ERROR,
                         message="Non-empty original_lines not allowed for create_file",
-                        details={"file": self.file},
+                        details={"file": str(self.file_path)},
                     )
                 )
             if not self.changed_lines:
@@ -96,6 +69,7 @@ class ApplydirFileChange(BaseModel):
                         error_type=ErrorType.EMPTY_CHANGED_LINES,
                         severity=ErrorSeverity.ERROR,
                         message="Empty changed_lines not allowed for create_file",
+                        details={"file": str(self.file_path)},
                     )
                 )
         elif self.action == ActionType.REPLACE_LINES:
@@ -106,7 +80,17 @@ class ApplydirFileChange(BaseModel):
                         error_type=ErrorType.ORIG_LINES_EMPTY,
                         severity=ErrorSeverity.ERROR,
                         message="Empty original_lines not allowed for replace_lines",
-                        details={"file": self.file},
+                        details={"file": str(self.file_path)},
+                    )
+                )
+            if not self.changed_lines:
+                errors.append(
+                    ApplydirError(
+                        change=self,
+                        error_type=ErrorType.EMPTY_CHANGED_LINES,
+                        severity=ErrorSeverity.ERROR,
+                        message="Empty changed_lines not allowed for replace_lines",
+                        details={"file": str(self.file_path)},
                     )
                 )
         elif self.action == ActionType.DELETE_FILE:
@@ -117,20 +101,19 @@ class ApplydirFileChange(BaseModel):
                         error_type=ErrorType.INVALID_CHANGE,
                         severity=ErrorSeverity.ERROR,
                         message="original_lines and changed_lines must be empty for delete_file",
-                        details={"file": self.file},
+                        details={"file": str(self.file_path)},
                     )
                 )
 
         # Determine non-ASCII action based on file extension
         non_ascii_action = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()
-        if self.file:
-            file_extension = Path(self.file).suffix.lower()
-            non_ascii_rules = config.get("validation", {}).get("non_ascii", {}).get("rules", [])
-            for rule in non_ascii_rules:
-                if file_extension in rule.get("extensions", []):
-                    non_ascii_action = rule.get("action", non_ascii_action).lower()
-                    break
-        logger.debug(f"Non-ASCII action for {self.file}: {non_ascii_action}")
+        file_extension = self.file_path.suffix.lower()
+        non_ascii_rules = config.get("validation", {}).get("non_ascii", {}).get("rules", [])
+        for rule in non_ascii_rules:
+            if file_extension in rule.get("extensions", []):
+                non_ascii_action = rule.get("action", non_ascii_action).lower()
+                break
+        logger.debug(f"Non-ASCII action for {self.file_path}: {non_ascii_action}")
 
         # Apply non-ASCII validation if action is error or warning
         if non_ascii_action in ["error", "warning"]:

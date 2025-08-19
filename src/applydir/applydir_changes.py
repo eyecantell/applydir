@@ -29,16 +29,16 @@ class FileEntry(BaseModel):
 class ApplydirChanges(BaseModel):
     """Parses and validates JSON input for applydir changes."""
 
-    files: List[FileEntry]
+    file_entries: List[FileEntry]
     model_config = ConfigDict(extra="allow")  # Allow extra fields at top level
 
     def __init__(self, **data):
-        logger.debug(f"Raw input JSON for files: {data.get('files', [])}")
+        logger.debug(f"Raw input JSON for file_entries: {data.get('file_entries', [])}")
         super().__init__(**data)
 
-    @field_validator("files")
+    @field_validator("file_entries")
     @classmethod
-    def validate_files(cls, v: List[FileEntry], info: ValidationInfo) -> List[FileEntry]:
+    def validate_file_entries(cls, v: List[FileEntry], info: ValidationInfo) -> List[FileEntry]:
         """Validates basic JSON structure and file entries (types only; deep validation in validate_changes)."""
         errors = []
         if not v:
@@ -47,7 +47,7 @@ class ApplydirChanges(BaseModel):
                     change=None,
                     error_type=ErrorType.JSON_STRUCTURE,
                     severity=ErrorSeverity.ERROR,
-                    message="JSON must contain a non-empty array of files",
+                    message="JSON must contain a non-empty array of file entries",
                     details={},
                 )
             )
@@ -116,20 +116,48 @@ class ApplydirChanges(BaseModel):
         return v
 
     def validate_changes(self, base_dir: str, config_override: Optional[Dict] = None, skip_file_system_checks: bool = False) -> List[ApplydirError]:
-        """Validates all file changes, including file system checks and content rules."""
+        """Validates all file changes, including base directory containment and file system checks."""
         errors = []
         config = config_override or {}
         logger.debug(f"Config used for validation: {config}")
-        base_path = Path(base_dir)
-        for file_entry in self.files:
-            file_path = base_path / file_entry.file
+        base_path = Path(base_dir).resolve()
+
+        for file_entry in self.file_entries:
+            # Validate file path containment
+            try:
+                file_path = (base_path / file_entry.file).resolve()
+                if not str(file_path).startswith(str(base_path)):
+                    errors.append(
+                        ApplydirError(
+                            change=None,
+                            error_type=ErrorType.FILE_PATH,
+                            severity=ErrorSeverity.ERROR,
+                            message="File path is outside project directory",
+                            details={"file": file_entry.file},
+                        )
+                    )
+                    continue
+            except Exception as e:
+                errors.append(
+                    ApplydirError(
+                        change=None,
+                        error_type=ErrorType.FILE_PATH,
+                        severity=ErrorSeverity.ERROR,
+                        message=f"Invalid file path: {str(e)}",
+                        details={"file": file_entry.file},
+                    )
+                )
+                continue
+
+            # Create change object for DELETE_FILE
             change_obj = ApplydirFileChange(
-                file=file_entry.file,
+                file_path=file_path,
                 original_lines=[],
                 changed_lines=[],
-                base_dir=base_path,
                 action=file_entry.action,
             )
+
+            # File system checks
             if file_entry.action == ActionType.DELETE_FILE:
                 if not skip_file_system_checks and not file_path.exists():
                     errors.append(
@@ -156,10 +184,9 @@ class ApplydirChanges(BaseModel):
                     for change in file_entry.changes:
                         try:
                             change_obj = ApplydirFileChange(
-                                file=file_entry.file,
+                                file_path=file_path,
                                 original_lines=change.get("original_lines", []),
                                 changed_lines=change.get("changed_lines", []),
-                                base_dir=base_path,
                                 action=file_entry.action,
                             )
                             if not skip_file_system_checks:

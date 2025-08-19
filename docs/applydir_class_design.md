@@ -1,4 +1,4 @@
-# applydir Class Design Document (August 17, 2025)
+# applydir Class Design Document (August 19, 2025)
 
 ## Overview
 The `applydir` project automates code changes with >95% reliability, integrating with `prepdir` (file contents) and `vibedir` (LLM prompts, Git, linting). Changes are specified in a JSON array of file objects, using `"replace_lines"` for line-level changes, `"create_file"` for new files, and `"delete_file"` for file deletions. Paths are resolvable within the project directory, matching `prepdir`’s output.
@@ -88,40 +88,46 @@ matching:
 
 ## Class Structure
 1. **ApplydirError (Pydantic)**:
-   - **Purpose**: JSON-serializable error/warning.
+   - **Purpose**: JSON-serializable error, warning, or success confirmation.
    - **Attributes**:
-     - `change: Optional[ApplydirFileChange]`
-     - `error_type: ErrorType` (e.g., `json_structure`, `file_path`, `no_match`, `multiple_matches`, `file_system`, `configuration`, `file_already_exists`, `permission_denied`)
-     - `severity: ErrorSeverity` (`error`, `warning`)
-     - `message: str`
-     - `details: Optional[Dict]` (e.g., `match_count` for `multiple_matches`)
+     - `change: Optional[ApplydirFileChange]`: Associated change, if applicable.
+     - `error_type: ErrorType`: Enum (e.g., `json_structure`, `file_path`, `no_match`, `multiple_matches`, `file_not_found`, `file_already_exists`, `file_system`, `permission_denied`, `file_changes_successful`, `invalid_change`).
+     - `severity: ErrorSeverity`: Enum (`error`, `warning`, `info`).
+     - `message: str`: Descriptive message.
+     - `details: Optional[Dict]`: Additional context (e.g., `match_count` for `multiple_matches`, `action` and `change_count` for `file_changes_successful`).
    - **Validation**: Valid enums, non-empty `message`, `details` defaults to `{}`.
+   - **Usage**: Errors (`error`, `warning`) for validation failures, success confirmations (`info`) for successful file changes.
 
 2. **ApplydirChanges (Pydantic)**:
    - **Purpose**: Parse and validate JSON array, create `ApplydirFileChange` objects.
    - **Attributes**:
-     - `files: List[FileEntry]`, where `FileEntry` is:
+     - `file_entries: List[FileEntry]`, where `FileEntry` is:
        - `file: str`: Relative file path.
        - `action: Optional[str] = "replace_lines"`: `"delete_file"`, `"replace_lines"`, or `"create_file"`.
-       - `changes: Optional[List[ApplydirFileChange]]`: Changes for `"replace_lines"` or `"create_file"`.
+       - `changes: Optional[List[Dict]]`: Changes for `"replace_lines"` or `"create_file"`.
    - **Validation**:
-     - Array of file objects, valid `file` paths, `action` in `{delete_file, replace_lines, create_file}` or absent.
+     - Array of file entries, valid `file` paths (resolvable within `base_dir`), `action` in `{delete_file, replace_lines, create_file}` or absent.
      - `"delete_file"`: File exists, `changes` ignored.
      - `"replace_lines"`: Non-empty `changes.original_lines` and `changes.changed_lines`.
      - `"create_file"`: Empty `changes.original_lines`, non-empty `changes.changed_lines`.
      - Warn on extra fields.
      - `skip_file_system_checks` in `validate_changes` for testing.
-   - **Error Handling**: Returns `List[ApplydirError]`.
+   - **Error Handling**: Returns `List[ApplydirError]` with `error` or `warning` severity for failures, `info` severity with `file_changes_successful` for successful file changes.
 
 3. **ApplydirFileChange (Pydantic)**:
-   - **Purpose**: Validate single change for `"replace_lines"` or `"create_file"`.
-   - **Attributes**: `file: str`, `original_lines: List[str]`, `changed_lines: List[str]`, `base_dir: Optional[Path]`, `action: ActionType`.
+   - **Purpose**: Container for a single change for `"replace_lines"`, `"create_file"`, or `"delete_file"`.
+   - **Attributes**:
+     - `file_path: Path`: Resolved file path within project directory.
+     - `original_lines: List[str]`: Lines to replace or empty for `"create_file"`.
+     - `changed_lines: List[str]`: New lines or full content.
+     - `action: ActionType`: Enum (`replace_lines`, `create_file`, `delete_file`).
    - **Validation**:
-     - Resolvable paths.
+     - Non-empty `file_path`.
      - Non-ASCII per `config.yaml`.
      - `"replace_lines"`: Non-empty `original_lines` and `changed_lines`.
      - `"create_file"`: Empty `original_lines`, non-empty `changed_lines`.
-   - **Error Handling**: Returns `List[ApplydirError]`.
+     - `"delete_file"`: Empty `original_lines` and `changed_lines`.
+   - **Error Handling**: Returns `List[ApplydirError]` with `error` or `warning` severity.
 
 4. **ApplydirMatcher**:
    - **Purpose**: Match `original_lines` using hybrid approach (exact first, optional fuzzy with `difflib` or Levenshtein).
@@ -137,7 +143,7 @@ matching:
      - `apply_single_change(change: ApplydirFileChange) -> List[ApplydirError]`
      - `delete_file(file_path: str) -> List[ApplydirError]`
      - `write_changes(file_path: str, changed_lines: List[str], range: Optional[Dict])`
-   - **Error Handling**: Returns `List[ApplydirError]` for file system/matching errors.
+   - **Error Handling**: Returns `List[ApplydirError]` with `error` or `warning` severity for file system/matching errors, `info` severity with `file_changes_successful` for successful file changes.
 
 6. **vibedir.min_context.calculate_min_context**:
    - **Purpose**: Compute minimal k for unique k-line sets.
@@ -153,27 +159,39 @@ applydir changes.json --base-dir /path/to/project --no-allow-file-deletion --non
 
 ## Error Types
 - `json_structure`: Invalid JSON or `action`.
-- `file_path`: Invalid path.
+- `file_path`: Invalid path or path outside project directory.
 - `changes_empty`: Empty `changes` for `"replace_lines"` or `"create_file"`.
 - `syntax`: Invalid `changed_lines` syntax.
 - `empty_changed_lines`: Empty `changed_lines`.
 - `no_match`: No matches for `original_lines`.
 - `multiple_matches`: Multiple matches for `original_lines`.
-- `file_system`: File operation errors.
+- `file_not_found`: File does not exist for `"delete_file"` or `"replace_lines"`.
 - `file_already_exists`: File exists for `"create_file"`.
-- `permission_denied`: Deletion not allowed.
+- `file_system`: Other file operation errors (e.g., disk full).
+- `permission_denied`: Access denied for file operations.
 - `configuration`: Invalid config (e.g., deletion disabled).
 - `linting`: Linting errors (via `vibedir`).
+- `file_changes_successful`: All changes to a file (`create_file`, `replace_lines`, `delete_file`) applied successfully.
+- `orig_lines_empty`: Empty `original_lines` for `"replace_lines"`.
+- `orig_lines_not_empty`: Non-empty `original_lines` for `"create_file"`.
+- `invalid_change`: Invalid change content for the specified action.
 
 ## Error Format
 ```json
 [
   {
-    "change": {"file": "src/main.py", "original_lines": ["..."], "changed_lines": ["..."]},
+    "change": {"file_path": "src/main.py", "original_lines": ["..."], "changed_lines": ["..."], "action": "replace_lines"},
     "error_type": "multiple_matches",
     "severity": "error",
     "message": "Multiple matches found for original_lines",
     "details": {"file": "src/main.py", "match_count": 3}
+  },
+  {
+    "change": {"file_path": "src/main.py", "original_lines": ["..."], "changed_lines": ["..."], "action": "replace_lines"},
+    "error_type": "file_changes_successful",
+    "severity": "info",
+    "message": "All changes to file applied successfully",
+    "details": {"file": "src/main.py", "action": "replace_lines", "change_count": 2}
   }
 ]
 ```
@@ -189,7 +207,7 @@ See Workflow in `applydir_design_overview.md`.
 - **dynaconf**: Configuration merging.
 
 ## Next Steps
-- Test new `no_match`, `multiple_matches`, `file_already_exists`, and `permission_denied` error types.
+- Test all `ErrorType` values, including `file_changes_successful` for successful file changes (`create_file`, `replace_lines`, `delete_file`) and edge cases (multiple matches, short files).
 - Integrate `vibedir.min_context.calculate_min_context` for `multiple_matches` errors.
-- Implement `vibedir`’s diff view for `"delete_file"`.
+- Implement `vibedir`’s diff view for `"delete_file"` and success confirmations using `file_changes_successful`.
 - Add `ValidationError` handling in `main.py`.
