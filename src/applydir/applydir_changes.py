@@ -27,7 +27,7 @@ class FileEntry(BaseModel):
             raise ValueError(f"Invalid action: {v}. Must be 'delete_file', 'replace_lines', or 'create_file'.")
 
 class ApplydirChanges(BaseModel):
-    """Parses and validates JSON input for applydir changes."""
+    """Parses and validates JSON input for applydir changes as a container class."""
 
     file_entries: List[FileEntry]
     model_config = ConfigDict(extra="allow")  # Allow extra fields at top level
@@ -115,15 +115,15 @@ class ApplydirChanges(BaseModel):
             )
         return v
 
-    def validate_changes(self, base_dir: str, config_override: Optional[Dict] = None, skip_file_system_checks: bool = False) -> List[ApplydirError]:
-        """Validates all file changes, including base directory containment and file system checks."""
+    def validate_changes(self, base_dir: str, config_override: Optional[Dict] = None) -> List[ApplydirError]:
+        """Validates all file changes for structure and path containment (no file system existence checks)."""
         errors = []
         config = config_override or {}
         logger.debug(f"Config used for validation: {config}")
         base_path = Path(base_dir).resolve()
 
         for file_entry in self.file_entries:
-            # Validate file path containment
+            # Validate file path containment (safety check)
             try:
                 file_path = (base_path / file_entry.file).resolve()
                 if not str(file_path).startswith(str(base_path)):
@@ -149,7 +149,7 @@ class ApplydirChanges(BaseModel):
                 )
                 continue
 
-            # Create change object for DELETE_FILE
+            # Create change object for DELETE_FILE (structural validation only)
             change_obj = ApplydirFileChange(
                 file_path=file_path,
                 original_lines=[],
@@ -157,19 +157,7 @@ class ApplydirChanges(BaseModel):
                 action=file_entry.action,
             )
 
-            # File system checks
-            if file_entry.action == ActionType.DELETE_FILE:
-                if not skip_file_system_checks and not file_path.exists():
-                    errors.append(
-                        ApplydirError(
-                            change=change_obj,
-                            error_type=ErrorType.FILE_NOT_FOUND,
-                            severity=ErrorSeverity.ERROR,
-                            message="File does not exist for deletion",
-                            details={"file": file_entry.file},
-                        )
-                    )
-            elif file_entry.action in [ActionType.REPLACE_LINES, ActionType.CREATE_FILE]:
+            if file_entry.action in [ActionType.REPLACE_LINES, ActionType.CREATE_FILE]:
                 if not file_entry.changes:
                     errors.append(
                         ApplydirError(
@@ -189,27 +177,6 @@ class ApplydirChanges(BaseModel):
                                 changed_lines=change.get("changed_lines", []),
                                 action=file_entry.action,
                             )
-                            if not skip_file_system_checks:
-                                if file_entry.action == ActionType.CREATE_FILE and file_path.exists():
-                                    errors.append(
-                                        ApplydirError(
-                                            change=change_obj,
-                                            error_type=ErrorType.FILE_ALREADY_EXISTS,
-                                            severity=ErrorSeverity.ERROR,
-                                            message="File already exists for new file creation",
-                                            details={"file": file_entry.file},
-                                        )
-                                    )
-                                elif file_entry.action == ActionType.REPLACE_LINES and not file_path.exists():
-                                    errors.append(
-                                        ApplydirError(
-                                            change=change_obj,
-                                            error_type=ErrorType.FILE_NOT_FOUND,
-                                            severity=ErrorSeverity.ERROR,
-                                            message="File does not exist for modification",
-                                            details={"file": file_entry.file},
-                                        )
-                                    )
                             errors.extend(change_obj.validate_change(config=config))
                         except Exception as e:
                             errors.append(

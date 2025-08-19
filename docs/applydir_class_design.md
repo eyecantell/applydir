@@ -99,23 +99,22 @@ matching:
    - **Usage**: Errors (`error`, `warning`) for validation failures, success confirmations (`info`) for successful file changes.
 
 2. **ApplydirChanges (Pydantic)**:
-   - **Purpose**: Parse and validate JSON array, create `ApplydirFileChange` objects.
+   - **Purpose**: Container class to parse and validate JSON array structure, create `ApplydirFileChange` objects.
    - **Attributes**:
      - `file_entries: List[FileEntry]`, where `FileEntry` is:
        - `file: str`: Relative file path.
        - `action: Optional[str] = "replace_lines"`: `"delete_file"`, `"replace_lines"`, or `"create_file"`.
        - `changes: Optional[List[Dict]]`: Changes for `"replace_lines"` or `"create_file"`.
    - **Validation**:
-     - Array of file entries, valid `file` paths (resolvable within `base_dir`), `action` in `{delete_file, replace_lines, create_file}` or absent.
-     - `"delete_file"`: File exists, `changes` ignored.
+     - Array of file entries, valid `file` paths (resolvable and contained within `base_dir`), `action` in `{delete_file, replace_lines, create_file}` or absent.
+     - `"delete_file"`: `changes` ignored.
      - `"replace_lines"`: Non-empty `changes.original_lines` and `changes.changed_lines`.
      - `"create_file"`: Empty `changes.original_lines`, non-empty `changes.changed_lines`.
      - Warn on extra fields.
-     - `skip_file_system_checks` in `validate_changes` for testing.
-   - **Error Handling**: Returns `List[ApplydirError]` with `error` or `warning` severity for failures, `info` severity with `file_changes_successful` for successful file changes.
+   - **Error Handling**: Returns `List[ApplydirError]` for structural validation failures.
 
 3. **ApplydirFileChange (Pydantic)**:
-   - **Purpose**: Container for a single change for `"replace_lines"`, `"create_file"`, or `"delete_file"`.
+   - **Purpose**: Container for a single change for `"replace_lines"`, `"create_file"`, or `"delete_file"`, with validation but no file system operations.
    - **Attributes**:
      - `file_path: Path`: Resolved file path within project directory.
      - `original_lines: List[str]`: Lines to replace or empty for `"create_file"`.
@@ -136,14 +135,15 @@ matching:
    - **Error Handling**: Returns `ApplydirError` with `error_type=NO_MATCH` for no matches or `MULTIPLE_MATCHES` for multiple matches, including `match_count` in `details`.
 
 5. **ApplydirApplicator**:
-   - **Purpose**: Apply changes using `ApplydirFileChange` and `ApplydirMatcher`.
+   - **Purpose**: Apply changes using `ApplydirFileChange` and `ApplydirMatcher`, including file system existence checks and operations.
    - **Attributes**: `base_dir: str`, `changes: ApplydirChanges`, `matcher: ApplydirMatcher`, `logger`, `config_override: Optional[Dict]`.
    - **Methods**:
      - `apply_changes() -> List[ApplydirError]`
-     - `apply_single_change(change: ApplydirFileChange) -> List[ApplydirError]`
-     - `delete_file(file_path: str) -> List[ApplydirError]`
-     - `write_changes(file_path: str, changed_lines: List[str], range: Optional[Dict])`
-   - **Error Handling**: Returns `List[ApplydirError]` with `error` or `warning` severity for file system/matching errors, `info` severity with `file_changes_successful` for successful file changes.
+     - `apply_single_change(file_path: Path, change: ApplydirFileChange) -> List[ApplydirError]`
+     - `delete_file(file_path: Path, relative_path: str) -> List[ApplydirError]`
+     - `write_changes(file_path: Path, changed_lines: List[str], range: Optional[Dict])`
+   - **Validation**: Performs file system existence checks (e.g., `FILE_NOT_FOUND` for `REPLACE_LINES` or `DELETE_FILE`, `FILE_ALREADY_EXISTS` for `CREATE_FILE`).
+   - **Error Handling**: Returns `List[ApplydirError]` with `error` or `warning` severity for failures, `info` severity with `file_changes_successful` for successful file changes.
 
 6. **vibedir.min_context.calculate_min_context**:
    - **Purpose**: Compute minimal k for unique k-line sets.
