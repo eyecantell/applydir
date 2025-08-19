@@ -1,16 +1,20 @@
-from typing import Optional, Dict, ClassVar
+from typing import Optional, Dict
 from pydantic import BaseModel, field_validator, ConfigDict, field_serializer
 from enum import Enum
 
 class ErrorSeverity(str, Enum):
     ERROR = "error"
     WARNING = "warning"
+    INFO = "info"
 
 class ErrorType(str, Enum):
     CHANGES_EMPTY = "changes_empty"
+    CHANGES_SUCCESSFUL = "changes_successful"
     CONFIGURATION = "configuration"
     EMPTY_CHANGED_LINES = "empty_changed_lines"
     FILE_PATH = "file_path"
+    FILE_NOT_FOUND = "file_not_found"
+    FILE_ALREADY_EXISTS = "file_already_exists"
     FILE_SYSTEM = "file_system"
     JSON_STRUCTURE = "json_structure"
     LINTING = "linting"
@@ -24,9 +28,12 @@ class ErrorType(str, Enum):
     def __str__(self):
         return {
             ErrorType.CHANGES_EMPTY: "Empty changes array for replace_lines or create_file",
+            ErrorType.CHANGES_SUCCESSFUL: "Changes applied successfully",
             ErrorType.CONFIGURATION: "Invalid configuration",
             ErrorType.EMPTY_CHANGED_LINES: "Empty changed_lines for replace_lines or create_file",
             ErrorType.FILE_PATH: "Invalid file path",
+            ErrorType.FILE_NOT_FOUND: "File does not exist",
+            ErrorType.FILE_ALREADY_EXISTS: "File already exists",
             ErrorType.FILE_SYSTEM: "File system operation failed",
             ErrorType.JSON_STRUCTURE: "Invalid JSON structure or action",
             ErrorType.LINTING: "Linting failed on file (handled by vibedir)",

@@ -56,6 +56,75 @@ def test_changes_empty_error():
     assert error.details == {"file": "src/main.py"}
     logger.debug(f"Changes empty error: {error}")
 
+def test_changes_successful_replace():
+    """Test ApplydirError creation for CHANGES_SUCCESSFUL with replace_lines."""
+    change = ApplydirFileChange(
+        file="src/main.py",
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd(),
+        action=ActionType.REPLACE_LINES,
+    )
+    error = ApplydirError(
+        change=change,
+        error_type=ErrorType.CHANGES_SUCCESSFUL,
+        severity=ErrorSeverity.INFO,
+        message="Changes applied successfully",
+        details={"file": "src/main.py", "action": "replace_lines"},
+    )
+    assert error.error_type == ErrorType.CHANGES_SUCCESSFUL
+    assert error.severity == ErrorSeverity.INFO
+    assert error.message == "Changes applied successfully"
+    assert error.details == {"file": "src/main.py", "action": "replace_lines"}
+    assert error.change == change
+    logger.debug(f"Changes successful (replace_lines): {error}")
+
+def test_changes_successful_create():
+    """Test ApplydirError creation for CHANGES_SUCCESSFUL with create_file."""
+    change = ApplydirFileChange(
+        file="src/new.py",
+        original_lines=[],
+        changed_lines=["print('Hello World')"],
+        base_dir=Path.cwd(),
+        action=ActionType.CREATE_FILE,
+    )
+    error = ApplydirError(
+        change=change,
+        error_type=ErrorType.CHANGES_SUCCESSFUL,
+        severity=ErrorSeverity.INFO,
+        message="Changes applied successfully",
+        details={"file": "src/new.py", "action": "create_file"},
+    )
+    assert error.error_type == ErrorType.CHANGES_SUCCESSFUL
+    assert error.severity == ErrorSeverity.INFO
+    assert error.message == "Changes applied successfully"
+    assert error.details == {"file": "src/new.py", "action": "create_file"}
+    assert error.change == change
+    logger.debug(f"Changes successful (create_file): {error}")
+
+def test_changes_successful_delete():
+    """Test ApplydirError creation for CHANGES_SUCCESSFUL with delete_file."""
+    change = ApplydirFileChange(
+        file="src/old.py",
+        original_lines=[],
+        changed_lines=[],
+        base_dir=Path.cwd(),
+        action=ActionType.DELETE_FILE,
+    )
+    error = ApplydirError(
+        change=change,
+        error_type=ErrorType.CHANGES_SUCCESSFUL,
+        severity=ErrorSeverity.INFO,
+        message="Changes applied successfully",
+        details={"file": "src/old.py", "action": "delete_file"},
+    )
+    assert error.error_type == ErrorType.CHANGES_SUCCESSFUL
+    assert error.severity == ErrorSeverity.INFO
+    assert error.message == "Changes applied successfully"
+    assert error.details == {"file": "src/old.py", "action": "delete_file"}
+    assert error.change == change
+    logger.debug(f"Changes successful (delete_file): {error}")
+
 def test_orig_lines_not_empty_error():
     """Test ApplydirError creation for ORIG_LINES_NOT_EMPTY."""
     change = ApplydirFileChange(
@@ -192,20 +261,65 @@ def test_multiple_matches_error():
     assert result is None
     logger.debug(f"Multiple matches error: {errors[0]}")
 
+def test_file_not_found_error():
+    """Test ApplydirError creation for FILE_NOT_FOUND."""
+    error = ApplydirError(
+        change=None,
+        error_type=ErrorType.FILE_NOT_FOUND,
+        severity=ErrorSeverity.ERROR,
+        message="File does not exist for deletion",
+        details={"file": "src/main.py"},
+    )
+    assert error.error_type == ErrorType.FILE_NOT_FOUND
+    assert error.severity == ErrorSeverity.ERROR
+    assert error.message == "File does not exist for deletion"
+    assert error.details == {"file": "src/main.py"}
+    logger.debug(f"File not found error: {error}")
+
+def test_file_already_exists_error():
+    """Test ApplydirError creation for FILE_ALREADY_EXISTS."""
+    error = ApplydirError(
+        change=None,
+        error_type=ErrorType.FILE_ALREADY_EXISTS,
+        severity=ErrorSeverity.ERROR,
+        message="File already exists for create_file",
+        details={"file": "src/main.py"},
+    )
+    assert error.error_type == ErrorType.FILE_ALREADY_EXISTS
+    assert error.severity == ErrorSeverity.ERROR
+    assert error.message == "File already exists for create_file"
+    assert error.details == {"file": "src/main.py"}
+    logger.debug(f"File already exists error: {error}")
+
 def test_file_system_error():
     """Test ApplydirError creation for FILE_SYSTEM."""
     error = ApplydirError(
         change=None,
         error_type=ErrorType.FILE_SYSTEM,
         severity=ErrorSeverity.ERROR,
-        message="File does not exist for deletion",
+        message="File system operation failed due to insufficient disk space",
         details={"file": "src/main.py"},
     )
     assert error.error_type == ErrorType.FILE_SYSTEM
     assert error.severity == ErrorSeverity.ERROR
-    assert error.message == "File does not exist for deletion"
+    assert error.message == "File system operation failed due to insufficient disk space"
     assert error.details == {"file": "src/main.py"}
     logger.debug(f"File system error: {error}")
+
+def test_permission_denied_error():
+    """Test ApplydirError creation for PERMISSION_DENIED."""
+    error = ApplydirError(
+        change=None,
+        error_type=ErrorType.PERMISSION_DENIED,
+        severity=ErrorSeverity.ERROR,
+        message="Permission denied when accessing file",
+        details={"file": "src/main.py"},
+    )
+    assert error.error_type == ErrorType.PERMISSION_DENIED
+    assert error.severity == ErrorSeverity.ERROR
+    assert error.message == "Permission denied when accessing file"
+    assert error.details == {"file": "src/main.py"}
+    logger.debug(f"Permission denied error: {error}")
 
 def test_linting_error():
     """Test ApplydirError creation for LINTING."""
@@ -248,16 +362,16 @@ def test_error_serialization():
     )
     error = ApplydirError(
         change=change,
-        error_type=ErrorType.SYNTAX,
-        severity=ErrorSeverity.ERROR,
-        message="Non-ASCII characters found in changed_lines",
-        details={"line": "print('Hello World')", "line_number": 1},
+        error_type=ErrorType.CHANGES_SUCCESSFUL,
+        severity=ErrorSeverity.INFO,
+        message="Changes applied successfully",
+        details={"file": "src/main.py", "action": "replace_lines"},
     )
     serialized = error.model_dump(mode="json")
-    assert serialized["error_type"] == "syntax"
-    assert serialized["severity"] == "error"
-    assert serialized["message"] == "Non-ASCII characters found in changed_lines"
-    assert serialized["details"] == {"line": "print('Hello World')", "line_number": 1}
+    assert serialized["error_type"] == "changes_successful"
+    assert serialized["severity"] == "info"
+    assert serialized["message"] == "Changes applied successfully"
+    assert serialized["details"] == {"file": "src/main.py", "action": "replace_lines"}
     assert serialized["change"]["file"] == "src/main.py"
     assert serialized["change"]["action"] == "replace_lines"
     logger.debug(f"Serialized error: {serialized}")
