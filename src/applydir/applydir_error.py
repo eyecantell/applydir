@@ -9,7 +9,7 @@ class ErrorSeverity(str, Enum):
 
 class ErrorType(str, Enum):
     CHANGES_EMPTY = "changes_empty"
-    CHANGES_SUCCESSFUL = "changes_successful"
+    FILE_CHANGES_SUCCESSFUL = "file_changes_successful"
     CONFIGURATION = "configuration"
     EMPTY_CHANGED_LINES = "empty_changed_lines"
     FILE_PATH = "file_path"
@@ -28,7 +28,7 @@ class ErrorType(str, Enum):
     def __str__(self):
         return {
             ErrorType.CHANGES_EMPTY: "Empty changes array for replace_lines or create_file",
-            ErrorType.CHANGES_SUCCESSFUL: "Changes applied successfully",
+            ErrorType.FILE_CHANGES_SUCCESSFUL: "All changes to file applied successfully",
             ErrorType.CONFIGURATION: "Invalid configuration",
             ErrorType.EMPTY_CHANGED_LINES: "Empty changed_lines for replace_lines or create_file",
             ErrorType.FILE_PATH: "Invalid file path",

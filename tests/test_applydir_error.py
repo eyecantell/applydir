@@ -62,15 +62,16 @@ def test_file_operation_errors(error_type, message, details):
     logger.debug(f"File operation error ({error_type}): {error}")
 
 @pytest.mark.parametrize(
-    "action,file,original_lines,changed_lines",
+    "action,file,original_lines,changed_lines,change_count",
     [
-        (ActionType.REPLACE_LINES, "src/main.py", ["print('Hello')"], ["print('Hello World')"]),
-        (ActionType.CREATE_FILE, "src/new.py", [], ["print('Hello World')"]),
-        (ActionType.DELETE_FILE, "src/old.py", [], []),
+        (ActionType.REPLACE_LINES, "src/main.py", ["print('Hello')"], ["print('Hello World')"], 1),
+        (ActionType.REPLACE_LINES, "src/main.py", ["def func():", "    pass"], ["def func():", "    return 42"], 2),
+        (ActionType.CREATE_FILE, "src/new.py", [], ["print('Hello World')"], 1),
+        (ActionType.DELETE_FILE, "src/old.py", [], [], 1),
     ],
 )
-def test_changes_successful(action, file, original_lines, changed_lines):
-    """Test ApplydirError creation for CHANGES_SUCCESSFUL with different actions."""
+def test_file_changes_successful(action, file, original_lines, changed_lines, change_count):
+    """Test ApplydirError creation for FILE_CHANGES_SUCCESSFUL with different actions."""
     change = ApplydirFileChange(
         file=file,
         original_lines=original_lines,
@@ -80,17 +81,17 @@ def test_changes_successful(action, file, original_lines, changed_lines):
     )
     error = ApplydirError(
         change=change,
-        error_type=ErrorType.CHANGES_SUCCESSFUL,
+        error_type=ErrorType.FILE_CHANGES_SUCCESSFUL,
         severity=ErrorSeverity.INFO,
-        message="Changes applied successfully",
-        details={"file": file, "action": action.value},
+        message="All changes to file applied successfully",
+        details={"file": file, "action": action.value, "change_count": change_count},
     )
-    assert error.error_type == ErrorType.CHANGES_SUCCESSFUL
+    assert error.error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
     assert error.severity == ErrorSeverity.INFO
-    assert error.message == "Changes applied successfully"
-    assert error.details == {"file": file, "action": action.value}
+    assert error.message == "All changes to file applied successfully"
+    assert error.details == {"file": file, "action": action.value, "change_count": change_count}
     assert error.change == change
-    logger.debug(f"Changes successful ({action}): {error}")
+    logger.debug(f"File changes successful ({action}, {change_count} changes): {error}")
 
 def test_orig_lines_not_empty_error():
     """Test ApplydirError creation for ORIG_LINES_NOT_EMPTY."""
@@ -234,7 +235,7 @@ def test_all_error_types_instantiable():
         error = ApplydirError(
             change=None,
             error_type=error_type,
-            severity=ErrorSeverity.ERROR if error_type != ErrorType.CHANGES_SUCCESSFUL else ErrorSeverity.INFO,
+            severity=ErrorSeverity.ERROR if error_type != ErrorType.FILE_CHANGES_SUCCESSFUL else ErrorSeverity.INFO,
             message=str(error_type),
             details={},
         )
@@ -255,16 +256,16 @@ def test_error_serialization():
     )
     error = ApplydirError(
         change=change,
-        error_type=ErrorType.CHANGES_SUCCESSFUL,
+        error_type=ErrorType.FILE_CHANGES_SUCCESSFUL,
         severity=ErrorSeverity.INFO,
-        message="Changes applied successfully",
-        details={"file": "src/main.py", "action": "replace_lines"},
+        message="All changes to file applied successfully",
+        details={"file": "src/main.py", "action": "replace_lines", "change_count": 1},
     )
     serialized = error.model_dump(mode="json")
-    assert serialized["error_type"] == "changes_successful"
+    assert serialized["error_type"] == "file_changes_successful"
     assert serialized["severity"] == "info"
-    assert serialized["message"] == "Changes applied successfully"
-    assert serialized["details"] == {"file": "src/main.py", "action": "replace_lines"}
+    assert serialized["message"] == "All changes to file applied successfully"
+    assert serialized["details"] == {"file": "src/main.py", "action": "replace_lines", "change_count": 1}
     assert serialized["change"]["file"] == "src/main.py"
     assert serialized["change"]["action"] == "replace_lines"
     logger.debug(f"Serialized error: {serialized}")

@@ -1,4 +1,4 @@
-# applydir Design Overview (August 17, 2025)
+# applydir Design Overview (August 19, 2025)
 
 ## Overview
 The `applydir` project automates code changes by applying LLM-generated modifications to a codebase, achieving >95% reliability. It integrates with `prepdir` (supplies file contents) and `vibedir` (manages LLM prompts, user interaction, and Git/linting). Changes are specified in a JSON array of file objects, using a unified replace approach for `"action": "replace_lines"` (modifications, additions, deletions within files), `"create_file"` for new files, and `"delete_file"` for file deletions. File paths are relative, matching `prepdir`’s output.
@@ -71,16 +71,16 @@ Changes within `context_lines` (default 5) are merged by the LLM into a single c
    - Calls `prepdir` for file contents.
    - Sends LLM prompt (see Prompt Design), receives JSON.
    - Passes JSON to `applydir` for validation.
-3. **applydir Validates**: Validates per Validation Rules, returning errors to `vibedir`.
-4. **vibedir Handles Errors**: On multiple matches, calls `vibedir.min_context.calculate_min_context` to get min k, queries LLM. Other errors are shown to user or sent to LLM.
-5. **vibedir Displays Diff**: If `auto_display_diff: true`, shows unified diff for `"replace_lines"`, full content for `"create_file"`, or “Delete <file>” for `"delete_file"`.
+3. **applydir Validates**: Validates per Validation Rules, returning a `List[ApplydirError]` containing errors (severity `ERROR` or `WARNING`) or success confirmations (severity `INFO` with `FILE_CHANGES_SUCCESSFUL` for all changes to a file).
+4. **vibedir Handles Errors and Successes**: On multiple matches, calls `vibedir.min_context.calculate_min_context` to get min k, queries LLM. Other errors are shown to user or sent to LLM. Success confirmations (`FILE_CHANGES_SUCCESSFUL`) are displayed with action-specific details (e.g., “All changes to src/main.py applied successfully”).
+5. **vibedir Displays Diff**: If `auto_display_diff: true`, shows unified diff for `"replace_lines"`, full content for `"create_file"`, or “Delete <file>” for `"delete_file"`. Success confirmations use `FILE_CHANGES_SUCCESSFUL` details to indicate the action performed for the entire file.
 6. **User Approval**: User approves/rejects changes, creating a new JSON subset.
-7. **applydir Applies Changes**: Deletes files (`"delete_file"`), replaces lines (`"replace_lines"`), or creates files (`"create_file"`), logging errors.
+7. **applydir Applies Changes**: Deletes files (`"delete_file"`), replaces lines (`"replace_lines"`), or creates files (`"create_file"`), returning `FILE_CHANGES_SUCCESSFUL` with action-specific details on success for all changes to a file, or logging errors for individual failed changes.
 
 ## Component Roles
 - **prepdir**: Supplies file contents with relative paths (e.g., `src/main.py`).
-- **vibedir**: Manages LLM prompts, calls `min_context.calculate_min_context` for multiple matches, handles errors, generates diff view, and manages Git/linting.
-- **applydir**: Validates JSON, applies changes, and returns errors.
+- **vibedir**: Manages LLM prompts, calls `min_context.calculate_min_context` for multiple matches, handles errors and success confirmations, generates diff view, and manages Git/linting.
+- **applydir**: Validates JSON, applies changes, and returns errors or success confirmations.
 - **min_context.py**: Library in `vibedir` with `calculate_min_context` to compute minimal unique line count.
 
 ## Config.yaml for vibedir
@@ -136,26 +136,30 @@ The LLM prompt (managed by `vibedir`) specifies:
   - `"delete_file"`: `changes` optional, ignored.
   - `"replace_lines"`: Non-empty `changes.original_lines` and `changes.changed_lines`.
   - `"create_file"`: Empty `changes.original_lines`, non-empty `changes.changed_lines`.
-- **File Deletion (`"delete_file"`)**: Verify file existence.
-- **Existing Files (`"replace_lines"`, non-empty `original_lines`)**: Exactly one match via hybrid approach (exact first, optional fuzzy with `difflib` or Levenshtein).
-- **New Files (`"create_file"`)**: Verify path does not exist, `changed_lines` valid.
-- **Error Handling**: Return `List[ApplydirError]` (e.g., “Unmatched original_lines”, “File exists for create_file”).
+  - Errors: `JSON_STRUCTURE` (invalid structure or action), `FILE_PATH` (invalid or empty path).
+- **File Deletion (`"delete_file"`)**: Verify file existence. Errors: `FILE_NOT_FOUND` (file does not exist), `PERMISSION_DENIED` (access denied), `FILE_SYSTEM` (other file operation failures, e.g., disk full).
+- **Existing Files (`"replace_lines"`, non-empty `original_lines`)**: Exactly one match via hybrid approach (exact first, optional fuzzy with `difflib` or Levenshtein). Errors: `NO_MATCH` (no matching lines), `MULTIPLE_MATCHES` (multiple matches found), `ORIG_LINES_EMPTY` (empty `original_lines`), `EMPTY_CHANGED_LINES` (empty `changed_lines`), `SYNTAX` (invalid syntax in `changed_lines`).
+- **New Files (`"create_file"`)**: Verify path does not exist, `changed_lines` valid. Errors: `FILE_ALREADY_EXISTS` (path exists), `PERMISSION_DENIED` (access denied), `FILE_SYSTEM` (other file operation failures), `ORIG_LINES_NOT_EMPTY` (non-empty `original_lines`), `EMPTY_CHANGED_LINES` (empty `changed_lines`), `SYNTAX` (invalid syntax).
+- **Configuration**: Validate `config.yaml` settings. Errors: `CONFIGURATION` (invalid settings), `LINTING` (linting failures, handled by `vibedir`).
+- **Success Reporting**: On successful application of all changes to a file (`create_file`, `replace_lines`, `delete_file`), return `FILE_CHANGES_SUCCESSFUL` with `INFO` severity and `details` containing `file`, `action`, and `change_count` (e.g., `{"file": "src/main.py", "action": "replace_lines", "change_count": 2}`).
 
 ## Ensuring >95% Reliability
 - **Unique Matching**: Default 5 lines in `original_lines`, with `vibedir.min_context.calculate_min_context` for multiple matches. Hybrid matching (exact first, optional fuzzy fallback) handles minor changes, with configurable whitespace, case sensitivity, similarity threshold, and metric per file type.
 - **Deletion Safety**: Validate file existence for `"delete_file"`, use `allow_file_deletion`.
 - **Creation Safety**: Validate non-existent paths for `"create_file"`.
-- **Validation**: Check syntax, matching, and paths.
+- **Validation**: Check syntax, matching, and paths, with specific error types (`FILE_NOT_FOUND`, `FILE_ALREADY_EXISTS`, `PERMISSION_DENIED`, `FILE_SYSTEM`).
+- **Success Confirmation**: Use `FILE_CHANGES_SUCCESSFUL` with action-specific details for clear user feedback on all changes to a file.
 - **User Approval**: `vibedir`’s diff view ensures correct changes.
 - **Clear Prompts**: Precise LLM instructions reduce errors.
 
 ## Edge Cases and Mitigations
-- **New File Creation**: Validate non-existent path for `"create_file"`.
-- **File Deletion**: Validate file existence for `"delete_file"`.
-- **Multiple Matches**: Call `calculate_min_context` to query LLM with min k.
+- **New File Creation**: Validate non-existent path for `"create_file"` (`FILE_ALREADY_EXISTS`, `PERMISSION_DENIED`, `FILE_SYSTEM`).
+- **File Deletion**: Validate file existence for `"delete_file"` (`FILE_NOT_FOUND`, `PERMISSION_DENIED`, `FILE_SYSTEM`).
+- **Multiple Matches**: Call `calculate_min_context` to query LLM with min k (`MULTIPLE_MATCHES`).
 - **Large Additions**: Use `context_lines` in `original_lines`, full `changed_lines`.
 - **Short Files**: Use all lines in `original_lines`.
-- **LLM Errors**: Validate syntax, matching, and paths; handle via `vibedir`.
+- **LLM Errors**: Validate syntax (`SYNTAX`), matching (`NO_MATCH`, `MULTIPLE_MATCHES`), and paths (`FILE_PATH`).
+- **Success Cases**: Report `FILE_CHANGES_SUCCESSFUL` with `action` and `change_count` in `details` for all changes to a file (`create_file`, `replace_lines`, `delete_file`).
 
 ## Dependencies
 - **prepdir**: Supplies file contents, `load_config`, `configure_logging`.
@@ -168,5 +172,5 @@ The LLM prompt (managed by `vibedir`) specifies:
 - Implement `vibedir.min_context.calculate_min_context`.
 - Test `ApplydirApplicator` with `pytest.tmp_path` for all actions.
 - Test LLM prompt with new actions and `context_lines`.
-- Create test cases for all actions, multiple matches, and short files.
-- Plan `vibedir`’s diff view for `"delete_file"`.
+- Create test cases for all `ErrorType` values, including `FILE_CHANGES_SUCCESSFUL` for success cases, multiple matches, and short files.
+- Plan `vibedir`’s diff view for `"delete_file"` and success confirmations.
