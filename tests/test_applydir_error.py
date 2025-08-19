@@ -10,13 +10,18 @@ from applydir.applydir_matcher import ApplydirMatcher
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
 
+
 @pytest.mark.parametrize(
     "error_type,message,details",
     [
         (ErrorType.JSON_STRUCTURE, "Invalid JSON structure", {"field": "files"}),
         (ErrorType.FILE_PATH, "File path missing or empty", {"file": "src/main.py"}),
         (ErrorType.CONFIGURATION, "Invalid configuration", {"config_key": "validation.non_ascii"}),
-        (ErrorType.LINTING, "Linting failed on file (handled by vibedir)", {"file": "src/main.py", "linting_output": "Syntax error at line 10"}),
+        (
+            ErrorType.LINTING,
+            "Linting failed on file (handled by vibedir)",
+            {"file": "src/main.py", "linting_output": "Syntax error at line 10"},
+        ),
         (ErrorType.CHANGES_EMPTY, "Empty changes array for replace_lines or create_file", {"file": "src/main.py"}),
     ],
 )
@@ -35,6 +40,7 @@ def test_basic_error_types(error_type, message, details):
     assert error.details == details
     assert error.change is None
     logger.debug(f"Basic error ({error_type}): {error}")
+
 
 @pytest.mark.parametrize(
     "error_type,message,details",
@@ -61,6 +67,7 @@ def test_file_operation_errors(error_type, message, details):
     assert error.change is None
     logger.debug(f"File operation error ({error_type}): {error}")
 
+
 @pytest.mark.parametrize(
     "action,file,original_lines,changed_lines,change_count",
     [
@@ -73,10 +80,9 @@ def test_file_operation_errors(error_type, message, details):
 def test_file_changes_successful(action, file, original_lines, changed_lines, change_count):
     """Test ApplydirError creation for FILE_CHANGES_SUCCESSFUL with different actions."""
     change = ApplydirFileChange(
-        file=file,
+        file_path=file,
         original_lines=original_lines,
         changed_lines=changed_lines,
-        base_dir=Path.cwd(),
         action=action,
     )
     error = ApplydirError(
@@ -93,13 +99,13 @@ def test_file_changes_successful(action, file, original_lines, changed_lines, ch
     assert error.change == change
     logger.debug(f"File changes successful ({action}, {change_count} changes): {error}")
 
+
 def test_orig_lines_not_empty_error():
     """Test ApplydirError creation for ORIG_LINES_NOT_EMPTY."""
     change = ApplydirFileChange(
-        file="src/new.py",
+        file_path="src/new.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.CREATE_FILE,
     )
     error = ApplydirError(
@@ -116,13 +122,13 @@ def test_orig_lines_not_empty_error():
     assert error.change == change
     logger.debug(f"Orig lines not empty error: {error}")
 
+
 def test_orig_lines_empty_error():
     """Test ApplydirError creation for ORIG_LINES_EMPTY."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=[],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     error = ApplydirError(
@@ -139,13 +145,13 @@ def test_orig_lines_empty_error():
     assert error.change == change
     logger.debug(f"Orig lines empty error: {error}")
 
+
 def test_syntax_error():
     """Test ApplydirError creation for SYNTAX."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello 😊')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     error = ApplydirError(
@@ -162,13 +168,13 @@ def test_syntax_error():
     assert error.change == change
     logger.debug(f"Syntax error: {error}")
 
+
 def test_empty_changed_lines_error():
     """Test ApplydirError creation for EMPTY_CHANGED_LINES."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=[],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     error = ApplydirError(
@@ -185,13 +191,13 @@ def test_empty_changed_lines_error():
     assert error.change == change
     logger.debug(f"Empty changed lines error: {error}")
 
+
 def test_no_match_error():
     """Test ApplydirError creation for NO_MATCH with ApplydirMatcher."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Unique')"],
         changed_lines=["print('Modified')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     matcher = ApplydirMatcher(similarity_threshold=0.95)
@@ -206,13 +212,13 @@ def test_no_match_error():
     assert result is None
     logger.debug(f"No match error: {errors[0]}")
 
+
 def test_multiple_matches_error():
     """Test ApplydirError creation for MULTIPLE_MATCHES with ApplydirMatcher."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Common')"],
         changed_lines=["print('Modified')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     matcher = ApplydirMatcher(similarity_threshold=0.95)
@@ -228,6 +234,7 @@ def test_multiple_matches_error():
     assert errors[0].change == change
     assert result is None
     logger.debug(f"Multiple matches error: {errors[0]}")
+
 
 def test_all_error_types_instantiable():
     """Test that all ErrorType values can be instantiated with minimal configuration."""
@@ -245,13 +252,13 @@ def test_all_error_types_instantiable():
         assert error.change is None
         logger.debug(f"Instantiable error type ({error_type}): {error}")
 
+
 def test_error_serialization():
     """Test JSON serialization of ApplydirError."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     error = ApplydirError(
@@ -266,9 +273,10 @@ def test_error_serialization():
     assert serialized["severity"] == "info"
     assert serialized["message"] == "All changes to file applied successfully"
     assert serialized["details"] == {"file": "src/main.py", "action": "replace_lines", "change_count": 1}
-    assert serialized["change"]["file"] == "src/main.py"
+    assert serialized["change"]["file_path"] == "src/main.py"
     assert serialized["change"]["action"] == "replace_lines"
     logger.debug(f"Serialized error: {serialized}")
+
 
 def test_empty_message_raises():
     """Test empty message raises ValueError."""
@@ -282,6 +290,7 @@ def test_empty_message_raises():
         )
     assert "Message cannot be empty or whitespace-only" in str(exc_info.value)
     logger.debug(f"Empty message error: {exc_info.value}")
+
 
 def test_whitespace_message_raises():
     """Test whitespace-only message raises ValueError."""

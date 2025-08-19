@@ -64,7 +64,7 @@ class ApplydirApplicator:
                     # Ensure change is an ApplydirFileChange object
                     if isinstance(change, dict):
                         try:
-                            change = ApplydirFileChange(**change, file=file_entry.file, base_dir=self.base_dir, action=file_entry.action)
+                            change = ApplydirFileChange(**change, file_path=file_entry.file, base_dir=self.base_dir, action=file_entry.action)
                         except Exception as e:
                             errors.append(
                                 ApplydirError(

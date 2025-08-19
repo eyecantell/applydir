@@ -75,36 +75,36 @@ class ApplydirMatcher:
     def match(self, file_content: List[str], change: ApplydirFileChange) -> Tuple[Optional[Dict], List[ApplydirError]]:
         """Matches original_lines in file_content, tries exact first, then fuzzy if configured."""
         errors = []
-        logger.debug(f"Matching for file: {change.file}, action: {change.action}")
+        logger.debug(f"Matching for file: {change.file_path}, action: {change.action}")
         logger.debug(f"Input file_content: {file_content}")
         logger.debug(f"Input original_lines: {change.original_lines}")
 
         if change.action == ActionType.CREATE_FILE:
-            logger.debug(f"Skipping match for create_file action: {change.file}")
+            logger.debug(f"Skipping match for create_file action: {change.file_path}")
             return None, []
 
         if not file_content:
-            logger.debug(f"Empty file content for {change.file}")
+            logger.debug(f"Empty file content for {change.file_path}")
             errors.append(
                 ApplydirError(
                     change=change,
                     error_type=ErrorType.NO_MATCH,
                     severity=ErrorSeverity.ERROR,
                     message="No match: File is empty",
-                    details={"file": str(change.file)},
+                    details={"file": str(change.file_path)},
                 )
             )
             return None, errors
 
         if not change.original_lines:
-            logger.debug(f"Empty original_lines for {change.file}")
+            logger.debug(f"Empty original_lines for {change.file_path}")
             errors.append(
                 ApplydirError(
                     change=change,
                     error_type=ErrorType.NO_MATCH,
                     severity=ErrorSeverity.ERROR,
                     message="No match: original_lines is empty",
-                    details={"file": str(change.file)},
+                    details={"file": str(change.fifile_pathle)},
                 )
             )
             return None, errors
@@ -116,10 +116,10 @@ class ApplydirMatcher:
         logger.debug(f"Search limit: {search_limit}, file lines: {n}, original lines: {m}")
 
         # Normalize lines based on whitespace handling
-        whitespace_handling = self.get_whitespace_handling(change.file)
-        use_fuzzy = self.get_use_fuzzy(change.file)
-        logger.debug(f"Whitespace handling for {change.file}: {whitespace_handling}")
-        logger.debug(f"Use fuzzy matching for {change.file}: {use_fuzzy}")
+        whitespace_handling = self.get_whitespace_handling(change.file_path)
+        use_fuzzy = self.get_use_fuzzy(change.file_path)
+        logger.debug(f"Whitespace handling for {change.file_path}: {whitespace_handling}")
+        logger.debug(f"Use fuzzy matching for {change.file_path}: {use_fuzzy}")
 
         def normalize(line: str) -> str:
             if whitespace_handling == "strict":
@@ -140,19 +140,19 @@ class ApplydirMatcher:
         logger.debug(f"Normalized file_content: {normalized_content}")
 
         # Exact matching first
-        logger.debug(f"Attempting exact match for {change.file}")
+        logger.debug(f"Attempting exact match for {change.file_path}")
         for i in range(search_limit):
             window = normalized_content[i : i + m]
             logger.debug(f"Checking exact window at index {i}: {window} (size: {len(window)})")
             if len(window) == m and window == normalized_original:
                 matches.append({"start": i, "end": i + m})
-                logger.debug(f"Exact match found at index {i} for {change.file}")
+                logger.debug(f"Exact match found at index {i} for {change.file_path}")
 
         # Fuzzy matching if no exact match and use_fuzzy is True
         if not matches and use_fuzzy:
-            similarity_threshold = self.get_similarity_threshold(change.file)
-            similarity_metric = self.get_similarity_metric(change.file)
-            logger.debug(f"Fuzzy matching for {change.file}, metric: {similarity_metric}, threshold: {similarity_threshold}")
+            similarity_threshold = self.get_similarity_threshold(change.file_path)
+            similarity_metric = self.get_similarity_metric(change.file_path)
+            logger.debug(f"Fuzzy matching for {change.file_path}, metric: {similarity_metric}, threshold: {similarity_threshold}")
             for i in range(search_limit):
                 window = normalized_content[i : i + m]
                 logger.debug(f"Checking fuzzy window at index {i}: {window} (size: {len(window)})")
@@ -164,36 +164,36 @@ class ApplydirMatcher:
                         matcher = SequenceMatcher(None, window, normalized_original, autojunk=False)
                         ratio = matcher.ratio()
                         matching_blocks = matcher.get_matching_blocks()
-                    logger.debug(f"Fuzzy match attempt at index {i} for {change.file}, metric: {similarity_metric}, ratio: {ratio:.4f}, window: {window}, original: {normalized_original}, matching_blocks: {matching_blocks}")
+                    logger.debug(f"Fuzzy match attempt at index {i} for {change.file_path}, metric: {similarity_metric}, ratio: {ratio:.4f}, window: {window}, original: {normalized_original}, matching_blocks: {matching_blocks}")
                     if ratio >= similarity_threshold:
                         matches.append({"start": i, "end": i + m})
                         logger.debug(f"Fuzzy match found at index {i}, metric: {similarity_metric}, ratio: {ratio:.4f}")
 
         if not matches:
-            logger.debug(f"No matches found for {change.file}")
+            logger.debug(f"No matches found for {change.file_path}")
             errors.append(
                 ApplydirError(
                     change=change,
                     error_type=ErrorType.NO_MATCH,
                     severity=ErrorSeverity.ERROR,
                     message="No matching lines found",
-                    details={"file": str(change.file)},
+                    details={"file": str(change.file_path)},
                 )
             )
             return None, errors
 
         if len(matches) > 1:
-            logger.debug(f"Multiple matches found for {change.file}: {len(matches)} matches")
+            logger.debug(f"Multiple matches found for {change.file_path}: {len(matches)} matches")
             errors.append(
                 ApplydirError(
                     change=change,
                     error_type=ErrorType.MULTIPLE_MATCHES,
                     severity=ErrorSeverity.ERROR,
                     message="Multiple matches found for original_lines",
-                    details={"file": str(change.file), "match_count": len(matches), "match_indices": [m["start"] for m in matches]},
+                    details={"file": str(change.file_path), "match_count": len(matches), "match_indices": [m["start"] for m in matches]},
                 )
             )
             return None, errors
 
-        logger.debug(f"Single match found for {change.file} at start: {matches[0]['start']}")
+        logger.debug(f"Single match found for {change.file_path} at start: {matches[0]['start']}")
         return matches[0], []
