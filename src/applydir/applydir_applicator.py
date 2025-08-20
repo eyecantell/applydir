@@ -40,27 +40,30 @@ class ApplydirApplicator:
         self.matcher = matcher or ApplydirMatcher(config=self.config)
 
     def apply_changes(self) -> List[ApplydirError]:
-        """Applies all changes directly to files in base_dir."""
+        """Applies all changes directly to files in base_dir, reporting one success per file."""
         errors = []
         if not self.changes:
             return errors
         for file_entry in self.changes.file_entries:
             file_path = self.base_dir / file_entry.file
+            change_count = 0
+            actions = set()
+            file_errors = []
+
+            # Create ApplydirFileChange instances for all actions
+            changes = []
             if file_entry.action == ActionType.DELETE_FILE:
                 try:
-                    change = ApplydirFileChange(
-                        file_path=file_path,
-                        original_lines=[],
-                        changed_lines=[],
-                        action=ActionType.DELETE_FILE,
+                    changes.append(
+                        ApplydirFileChange(
+                            file_path=file_path,
+                            original_lines=[],
+                            changed_lines=[],
+                            action=ActionType.DELETE_FILE,
+                        )
                     )
-                    validation_errors = change.validate_change(self.config.get("validation", {}))
-                    errors.extend(validation_errors)
-                    if validation_errors:
-                        continue
-                    errors.extend(self.delete_file(file_path, change))
                 except Exception as e:
-                    errors.append(
+                    file_errors.append(
                         ApplydirError(
                             change=None,
                             error_type=ErrorType.INVALID_CHANGE,
@@ -70,19 +73,13 @@ class ApplydirApplicator:
                         )
                     )
             elif file_entry.action in [ActionType.CREATE_FILE, ActionType.REPLACE_LINES]:
-                for change_dict in file_entry.changes:
+                for change_dict in file_entry.changes or []:
                     try:
-                        change = ApplydirFileChange(**change_dict, file_path=file_path, action=file_entry.action)
-                        validation_errors = change.validate_change(self.config.get("validation", {}))
-                        errors.extend(validation_errors)
-                        if validation_errors:
-                            continue
-                        if file_entry.action == ActionType.CREATE_FILE:
-                            errors.extend(self.create_file(file_path, change))
-                        elif file_entry.action == ActionType.REPLACE_LINES:
-                            errors.extend(self.replace_lines(file_path, change))
+                        changes.append(
+                            ApplydirFileChange(**change_dict, file_path=file_path, action=file_entry.action)
+                        )
                     except Exception as e:
-                        errors.append(
+                        file_errors.append(
                             ApplydirError(
                                 change=None,
                                 error_type=ErrorType.INVALID_CHANGE,
@@ -92,13 +89,57 @@ class ApplydirApplicator:
                             )
                         )
             else:
-                errors.append(
+                file_errors.append(
                     ApplydirError(
                         change=None,
                         error_type=ErrorType.INVALID_CHANGE,
                         severity=ErrorSeverity.ERROR,
                         message=f"Unsupported action: {file_entry.action}",
                         details={"file": file_entry.file},
+                    )
+                )
+
+            # Validate and process changes
+            for change in changes:
+                validation_errors = change.validate_change(self.config.get("validation", {}))
+                file_errors.extend(validation_errors)
+                if any(e.severity == ErrorSeverity.ERROR for e in validation_errors):
+                    continue
+                try:
+                    if change.action == ActionType.CREATE_FILE:
+                        file_errors.extend(self.create_file(file_path, change))
+                    elif change.action == ActionType.REPLACE_LINES:
+                        file_errors.extend(self.replace_lines(file_path, change))
+                    elif change.action == ActionType.DELETE_FILE:
+                        file_errors.extend(self.delete_file(file_path, change))
+                    if not any(e.severity == ErrorSeverity.ERROR for e in file_errors[-len(file_errors):]):
+                        change_count += 1
+                        actions.add(change.action.value)
+                except Exception as e:
+                    file_errors.append(
+                        ApplydirError(
+                            change=change,
+                            error_type=ErrorType.FILE_SYSTEM,
+                            severity=ErrorSeverity.ERROR,
+                            message=f"Failed to apply change: {str(e)}",
+                            details={"file": str(file_path)},
+                        )
+                    )
+
+            # Append file-level success if any changes were applied successfully
+            errors.extend(file_errors)
+            if change_count > 0:
+                errors.append(
+                    ApplydirError(
+                        change=None,
+                        error_type=ErrorType.FILE_CHANGES_SUCCESSFUL,
+                        severity=ErrorSeverity.INFO,
+                        message="All changes to file applied successfully",
+                        details={
+                            "file": str(file_path),
+                            "actions": list(actions),
+                            "change_count": change_count
+                        },
                     )
                 )
         return errors
@@ -120,15 +161,6 @@ class ApplydirApplicator:
                 )
                 return errors
             self.write_changes(file_path, change.changed_lines, None)
-            errors.append(
-                ApplydirError(
-                    change=change,
-                    error_type=ErrorType.FILE_CHANGES_SUCCESSFUL,
-                    severity=ErrorSeverity.INFO,
-                    message="All changes to file applied successfully",
-                    details={"file": str(change.file_path), "action": change.action.value, "change_count": 1},
-                )
-            )
         except Exception as e:
             errors.append(
                 ApplydirError(
@@ -163,15 +195,6 @@ class ApplydirApplicator:
             errors.extend(match_errors)
             if match_result:
                 self.write_changes(file_path, change.changed_lines, match_result)
-                errors.append(
-                    ApplydirError(
-                        change=change,
-                        error_type=ErrorType.FILE_CHANGES_SUCCESSFUL,
-                        severity=ErrorSeverity.INFO,
-                        message="All changes to file applied successfully",
-                        details={"file": str(change.file_path), "action": change.action.value, "change_count": 1},
-                    )
-                )
         except Exception as e:
             errors.append(
                 ApplydirError(
@@ -212,15 +235,6 @@ class ApplydirApplicator:
                 return errors
             file_path.unlink()
             self.logger.info(f"Deleted file: {change.file_path}")
-            errors.append(
-                ApplydirError(
-                    change=change,
-                    error_type=ErrorType.FILE_CHANGES_SUCCESSFUL,
-                    severity=ErrorSeverity.INFO,
-                    message="All changes to file applied successfully",
-                    details={"file": str(change.file_path), "action": change.action.value, "change_count": 1},
-                )
-            )
         except Exception as e:
             errors.append(
                 ApplydirError(
