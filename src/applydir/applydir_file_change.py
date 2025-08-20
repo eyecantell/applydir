@@ -118,14 +118,13 @@ class ApplydirFileChange(BaseModel):
             errors = []
             for i, line in enumerate(lines_to_check, 1):
                 if any(ord(char) > 127 for char in str(line)):
-                    # We only care about a single example - saving time by not getting all of them
                     errors.append(
                         ApplydirError(
                             change=self,
                             error_type=ErrorType.NON_ASCII_CHARS,
                             severity=severity,
                             message=f"Non-ASCII characters found in {property_name}",
-                            details={"line": line, "line_number": i},
+                            details={"line": str(line), "line_number": i},
                         )
                     )
             return errors

@@ -2,7 +2,7 @@ import pytest
 import logging
 from pathlib import Path
 from prepdir import configure_logging
-from applydir.applydir_file_change import ApplydirFileChange, ActionType
+from applydir.applydir_file_change import ApplydirFileChange, ActionType, get_non_ascii_severity
 from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from applydir.applydir_matcher import ApplydirMatcher
 from pydantic import ValidationError
@@ -13,12 +13,14 @@ configure_logging(logger, level=logging.DEBUG)
 
 logging.getLogger("applydir").setLevel(logging.DEBUG)
 
+
 # Configuration matching config.yaml
 TEST_ASCII_CONFIG = {
     "validation": {
         "non_ascii": {
             "default": "warning",
             "rules": [
+                {"path": True, "action": "error"},
                 {"extensions": [".py", ".js"], "action": "error"},
                 {"extensions": [".md", ".markdown"], "action": "ignore"},
                 {"extensions": [".json", ".yaml"], "action": "warning"},
@@ -26,7 +28,6 @@ TEST_ASCII_CONFIG = {
         }
     }
 }
-
 
 def test_valid_file_path():
     """Test valid file path."""
@@ -53,57 +54,6 @@ def test_empty_file_path():
     assert "File path must be a valid Path object and non-empty" in str(exc_info.value)
 
 
-def test_non_ascii_error():
-    """Test non-ASCII characters with error config."""
-    change = ApplydirFileChange(
-        file_path=Path("src/main.py"),
-        original_lines=["print('Hello')"],
-        changed_lines=["print('Hello 😊')"],
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change(config={"validation": {"non_ascii": {"default": "error"}}})
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.SYNTAX
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "Non-ASCII characters found in changed_lines"
-    assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
-    logger.debug(f"Non-ASCII error: {errors[0]}")
-
-
-def test_non_ascii_ignore():
-    """Test non-ASCII characters with ignore config."""
-    change = ApplydirFileChange(
-        file_path=Path("src/main.py"),
-        original_lines=["print('Hello')"],
-        changed_lines=["print('Hello 😊')"],
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change(config={"validation": {"non_ascii": {"default": "ignore"}}})
-    assert len(errors) == 0
-    logger.debug("Non-ASCII ignored")
-
-
-def test_non_ascii_rule_override():
-    """Test non-ASCII rule override for .py file."""
-    config = {
-        "validation": {
-            "non_ascii": {
-                "default": "error",
-                "rules": [{"extensions": [".py"], "action": "ignore"}],
-            }
-        }
-    }
-    change = ApplydirFileChange(
-        file_path=Path("src/main.py"),
-        original_lines=["print('Hello')"],
-        changed_lines=["print('Hello 😊')"],
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change(config=config)
-    assert len(errors) == 0
-    logger.debug("Non-ASCII ignored for .py due to rule override")
-
-
 def test_valid_change_no_original_lines():
     """Test valid change for create_file with empty original_lines."""
     change = ApplydirFileChange(
@@ -115,74 +65,6 @@ def test_valid_change_no_original_lines():
     errors = change.validate_change()
     assert len(errors) == 0
     logger.debug("Valid change for create_file with empty original_lines")
-
-
-def test_non_ascii_py_file_error():
-    """Test non-ASCII characters in .py file generates ERROR."""
-    change = ApplydirFileChange(
-        file_path=Path("src/main.py"),
-        original_lines=["print('Hello')"],
-        changed_lines=["print('Hello 😊')"],
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change(config=TEST_ASCII_CONFIG)
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.SYNTAX
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "Non-ASCII characters found in changed_lines"
-    assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
-    logger.debug(f"Non-ASCII error for .py: {errors[0]}")
-
-
-def test_non_ascii_js_file_error():
-    """Test non-ASCII characters in .js file generates ERROR."""
-    change = ApplydirFileChange(
-        file_path=Path("src/script.js"),
-        original_lines=["console.log('Hello');"],
-        changed_lines=["console.log('Hello 😊');"],
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change(config=TEST_ASCII_CONFIG)
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.SYNTAX
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "Non-ASCII characters found in changed_lines"
-    assert errors[0].details == {"line": "console.log('Hello 😊');", "line_number": 1}
-    logger.debug(f"Non-ASCII error for .js: {errors[0]}")
-
-
-def test_non_ascii_md_file_ignore():
-    """Test non-ASCII characters in .md file are ignored."""
-    change = ApplydirFileChange(
-        file_path=Path("src/docs.md"),
-        original_lines=["# Original"],
-        changed_lines=["Hello 😊"],
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change(config=TEST_ASCII_CONFIG)
-    assert len(errors) == 0
-    logger.debug("Non-ASCII ignored for .md")
-
-
-def test_multiple_non_ascii_errors():
-    """Test multiple non-ASCII characters in changed_lines generate multiple errors."""
-    change = ApplydirFileChange(
-        file_path=Path("src/main.py"),
-        original_lines=["print('Hello')"],
-        changed_lines=["print('Hello 😊')", "print('World 😊')"],
-        action=ActionType.REPLACE_LINES,
-    )
-    errors = change.validate_change(config=TEST_ASCII_CONFIG)
-    assert len(errors) == 2
-    assert errors[0].error_type == ErrorType.SYNTAX
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "Non-ASCII characters found in changed_lines"
-    assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
-    assert errors[1].error_type == ErrorType.SYNTAX
-    assert errors[1].severity == ErrorSeverity.ERROR
-    assert errors[1].message == "Non-ASCII characters found in changed_lines"
-    assert errors[1].details == {"line": "print('World 😊')", "line_number": 2}
-    logger.debug(f"Multiple non-ASCII errors: {errors}")
 
 
 def test_empty_config():
@@ -369,7 +251,7 @@ def test_delete_file_validation():
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.INVALID_CHANGE
     assert errors[0].severity == ErrorSeverity.WARNING
-    assert errors[0].message == "original_lines and changed_lines should be empty for delete_file"
+    assert errors[0].message == "The original_lines and changed_lines should be empty for delete_file"
     logger.debug(f"Invalid delete_file: {errors[0]}")
 
 
@@ -457,3 +339,211 @@ def test_from_file_entry_invalid_action():
         ApplydirFileChange.from_file_entry(file_path, action, None)
     logger.debug(f"Invalid action in from_file_entry: {exc_info.value}")
     assert "Input should be 'replace_lines', 'create_file' or 'delete_file" in str(exc_info.value)
+
+
+def test_non_ascii_error():
+    """Test non-ASCII characters with error config."""
+    change = ApplydirFileChange(
+        file_path=Path("src/main.py"),
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello 😊')"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config={"validation": {"non_ascii": {"default": "error"}}})
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Non-ASCII characters found in changed_lines"
+    assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
+    logger.debug(f"Non-ASCII error: {errors[0]}")
+
+
+def test_non_ascii_ignore():
+    """Test non-ASCII characters with ignore config."""
+    change = ApplydirFileChange(
+        file_path=Path("src/main.py"),
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello 😊')"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config={"validation": {"non_ascii": {"default": "ignore"}}})
+    assert len(errors) == 0
+    logger.debug("Non-ASCII ignored")
+
+
+def test_non_ascii_rule_override():
+    """Test non-ASCII rule override for .py file."""
+    config = {
+        "validation": {
+            "non_ascii": {
+                "default": "error",
+                "rules": [{"extensions": [".py"], "action": "ignore"}],
+            }
+        }
+    }
+    change = ApplydirFileChange(
+        file_path=Path("src/main.py"),
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello 😊')"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config=config)
+    assert len(errors) == 0
+    logger.debug("Non-ASCII ignored for .py due to rule override")
+
+
+def test_non_ascii_py_file_error():
+    """Test non-ASCII characters in .py file generates ERROR."""
+    change = ApplydirFileChange(
+        file_path=Path("src/main.py"),
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello 😊')"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Non-ASCII characters found in changed_lines"
+    assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
+    logger.debug(f"Non-ASCII error for .py: {errors[0]}")
+
+
+def test_non_ascii_js_file_error():
+    """Test non-ASCII characters in .js file generates ERROR."""
+    change = ApplydirFileChange(
+        file_path=Path("src/script.js"),
+        original_lines=["console.log('Hello');"],
+        changed_lines=["console.log('Hello 😊');"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Non-ASCII characters found in changed_lines"
+    assert errors[0].details == {"line": "console.log('Hello 😊');", "line_number": 1}
+    logger.debug(f"Non-ASCII error for .js: {errors[0]}")
+
+
+def test_non_ascii_md_file_ignore():
+    """Test non-ASCII characters in .md file are ignored."""
+    change = ApplydirFileChange(
+        file_path=Path("src/docs.md"),
+        original_lines=["# Original"],
+        changed_lines=["Hello 😊"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
+    assert len(errors) == 0
+    logger.debug("Non-ASCII ignored for .md")
+
+
+def test_multiple_non_ascii_errors():
+    """Test multiple non-ASCII characters in changed_lines generate one error."""
+    change = ApplydirFileChange(
+        file_path=Path("src/main.py"),
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello 😊')", "print('World 😊')"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
+    assert len(errors) == 2
+    assert all(ErrorType.NON_ASCII_CHARS == err.error_type for err in errors)
+    assert all(ErrorSeverity.ERROR == err.severity for err in errors)
+    
+    assert any("Non-ASCII characters found in changed_lines" == err.message for err in errors)
+    assert any({"line": "print('Hello 😊')", "line_number": 1} == err.details for err in errors)
+    assert any({"line": "print('World 😊')", "line_number": 2} == err.details for err in errors)
+
+
+
+# New tests for non-ASCII validation
+
+def test_non_ascii_file_path_error():
+    """Test non-ASCII characters in file path generates ERROR."""
+    change = ApplydirFileChange(
+        file_path=Path("src/main😊.py"),
+        original_lines=["print('Hello')"],
+        changed_lines=["print('Hello World')"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
+    print(f"errors are {errors}")
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Non-ASCII characters found in file_path"
+    assert errors[0].details == {"line": "src/main😊.py", "line_number": 1}
+    logger.debug(f"Non-ASCII error for file_path: {errors[0]}")
+
+
+def test_non_ascii_original_lines_error():
+    """Test non-ASCII characters in original_lines for .py file generates ERROR."""
+    change = ApplydirFileChange(
+        file_path=Path("src/main.py"),
+        original_lines=["print('Hello 😊')"],
+        changed_lines=["print('Hello World')"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Non-ASCII characters found in original_lines"
+    assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
+    logger.debug(f"Non-ASCII error for original_lines: {errors[0]}")
+
+
+def test_non_ascii_yaml_file_warning():
+    """Test non-ASCII characters in .yaml file generates WARNING."""
+    change = ApplydirFileChange(
+        file_path=Path("src/config.yaml"),
+        original_lines=["key: value"],
+        changed_lines=["key: value 😊"],
+        action=ActionType.REPLACE_LINES,
+    )
+    errors = change.validate_change(config=TEST_ASCII_CONFIG)
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
+    assert errors[0].severity == ErrorSeverity.WARNING
+    assert errors[0].message == "Non-ASCII characters found in changed_lines"
+    assert errors[0].details == {"line": "key: value 😊", "line_number": 1}
+    logger.debug(f"Non-ASCII warning for .yaml: {errors[0]}")
+
+
+def test_get_non_ascii_severity_no_config():
+    """Test get_non_ascii_severity with no config returns default 'ignore'."""
+    severity = get_non_ascii_severity({}, "extensions", ".py")
+    assert severity == "ignore"
+    logger.debug("get_non_ascii_severity with no config: ignore")
+
+
+def test_get_non_ascii_severity_invalid_rule_name():
+    """Test get_non_ascii_severity with invalid rule_name raises ValueError."""
+    with pytest.raises(ValueError) as exc_info:
+        get_non_ascii_severity(TEST_ASCII_CONFIG, "invalid_rule")
+    assert "Unknown rule_name: invalid_rule" in str(exc_info.value)
+    logger.debug("get_non_ascii_severity with invalid rule_name: ValueError")
+
+
+def test_get_non_ascii_severity_missing_extension():
+    """Test get_non_ascii_severity with no file_extension raises ValueError."""
+    with pytest.raises(ValueError) as exc_info:
+        get_non_ascii_severity(TEST_ASCII_CONFIG, "extensions")
+    assert "Must have an extension when rule name is extension" in str(exc_info.value)
+    logger.debug("get_non_ascii_severity with missing extension: ValueError")
+
+
+def test_get_non_ascii_severity_path_rule():
+    """Test get_non_ascii_severity for path rule returns correct severity."""
+    severity = get_non_ascii_severity(TEST_ASCII_CONFIG, "path")
+    assert severity == "error"
+    logger.debug("get_non_ascii_severity for path: error")
+
+
+def test_get_non_ascii_severity_extension_rule():
+    """Test get_non_ascii_severity for .py returns correct severity."""
+    severity = get_non_ascii_severity(TEST_ASCII_CONFIG, "extensions", ".py")
+    assert severity == "error"
+    logger.debug("get_non_ascii_severity for .py: error")
