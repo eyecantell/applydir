@@ -101,7 +101,7 @@ class ApplydirFileChange(BaseModel):
                     ApplydirError(
                         change=self,
                         error_type=ErrorType.INVALID_CHANGE,
-                        severity=ErrorSeverity.ERROR,
+                        severity=ErrorSeverity.WARNING,  # We allow this per design, but log a warning
                         message="original_lines and changed_lines must be empty for delete_file",
                         details={"file": str(self.file_path)},
                     )

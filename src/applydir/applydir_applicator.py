@@ -54,12 +54,8 @@ class ApplydirApplicator:
             # Create ApplydirFileChange instances
             changes = []
             try:
-                # For DELETE_FILE or empty changes, create one change with None change_dict
-                change_dicts = (
-                    [None]
-                    if file_entry.action == ActionType.DELETE_FILE or not file_entry.changes
-                    else file_entry.changes
-                )
+                # To make sure we process entries without changes, set change_dict to a single None entry
+                change_dicts = [None] if not file_entry.changes else file_entry.changes
                 for change_dict in change_dicts:
                     try:
                         change = ApplydirFileChange.from_file_entry(file_path, file_entry.action, change_dict)
