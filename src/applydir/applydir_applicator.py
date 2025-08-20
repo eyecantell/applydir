@@ -10,7 +10,6 @@ from typing import List, Optional, Dict
 
 logger = logging.getLogger("applydir")
 
-
 class ApplydirApplicator:
     """Applies validated changes to files."""
 
@@ -67,10 +66,20 @@ class ApplydirApplicator:
                             )
                             continue
                     errors.extend(self.apply_single_change(file_path, change))
+            else:
+                errors.append(
+                    ApplydirError(
+                        change=None,
+                        error_type=ErrorType.INVALID_CHANGE,
+                        severity=ErrorSeverity.ERROR,
+                        message=f"Unsupported action: {file_entry.action}",
+                        details={"file": file_entry.file},
+                    )
+                )
         return errors
 
     def apply_single_change(self, file_path: Path, change: ApplydirFileChange) -> List[ApplydirError]:
-        """Applies a single change to a file."""
+        """Applies a single change to a file for REPLACE_LINES or CREATE_FILE."""
         errors = []
         try:
             # Validate change structure (non-ASCII, action rules)
@@ -129,8 +138,6 @@ class ApplydirApplicator:
                             details={"file": str(change.file_path), "action": change.action.value, "change_count": 1},
                         )
                     )
-            elif change.action == ActionType.DELETE_FILE:
-                errors.extend(self.delete_file(file_path, str(change.file_path)))
         except Exception as e:
             errors.append(
                 ApplydirError(
@@ -198,7 +205,7 @@ class ApplydirApplicator:
         if range:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read().splitlines()
-            content[range["start"] : range["end"]] = changed_lines
+            content[range["start"]:range["end"]] = changed_lines
         else:
             content = changed_lines
         with open(file_path, "w", encoding="utf-8") as f:
