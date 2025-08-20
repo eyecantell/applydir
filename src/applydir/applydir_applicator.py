@@ -50,33 +50,24 @@ class ApplydirApplicator:
             actions = set()
             file_errors = []
 
-            # Create ApplydirFileChange instances for all actions
+            # Create ApplydirFileChange instances
             changes = []
-            if file_entry.action == ActionType.DELETE_FILE:
-                try:
-                    changes.append(
-                        ApplydirFileChange(
-                            file_path=file_path,
-                            original_lines=[],
-                            changed_lines=[],
-                            action=ActionType.DELETE_FILE,
-                        )
-                    )
-                except Exception as e:
-                    file_errors.append(
-                        ApplydirError(
-                            change=None,
-                            error_type=ErrorType.INVALID_CHANGE,
-                            severity=ErrorSeverity.ERROR,
-                            message=f"Failed to create ApplydirFileChange for deletion: {str(e)}",
-                            details={"file": file_entry.file},
-                        )
-                    )
-            elif file_entry.action in [ActionType.CREATE_FILE, ActionType.REPLACE_LINES]:
-                for change_dict in file_entry.changes or []:
+            try:
+                # For DELETE_FILE or empty changes, create one change with None change_dict
+                change_dicts = [None] if file_entry.action == ActionType.DELETE_FILE or not file_entry.changes else file_entry.changes
+                for change_dict in change_dicts:
                     try:
-                        changes.append(
-                            ApplydirFileChange(**change_dict, file_path=file_path, action=file_entry.action)
+                        change = ApplydirFileChange.from_file_entry(file_path, file_entry.action, change_dict)
+                        changes.append(change)
+                    except ValueError as e:
+                        file_errors.append(
+                            ApplydirError(
+                                change=None,
+                                error_type=ErrorType.INVALID_CHANGE,
+                                severity=ErrorSeverity.ERROR,
+                                message=str(e),
+                                details={"file": file_entry.file},
+                            )
                         )
                     except Exception as e:
                         file_errors.append(
@@ -84,17 +75,17 @@ class ApplydirApplicator:
                                 change=None,
                                 error_type=ErrorType.INVALID_CHANGE,
                                 severity=ErrorSeverity.ERROR,
-                                message=f"Failed to convert change to ApplydirFileChange: {str(e)}",
+                                message=f"Failed to create ApplydirFileChange: {str(e)}",
                                 details={"file": file_entry.file},
                             )
                         )
-            else:
+            except Exception as e:
                 file_errors.append(
                     ApplydirError(
                         change=None,
                         error_type=ErrorType.INVALID_CHANGE,
                         severity=ErrorSeverity.ERROR,
-                        message=f"Unsupported action: {file_entry.action}",
+                        message=f"Unexpected error processing changes: {str(e)}",
                         details={"file": file_entry.file},
                     )
                 )
