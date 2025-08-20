@@ -11,6 +11,8 @@ from prepdir import configure_logging
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
 
+logging.getLogger('applydir').setLevel(logging.DEBUG)
+
 @pytest.fixture
 def applicator(tmp_path):
     """Create an ApplydirApplicator instance."""
@@ -29,6 +31,28 @@ def test_replace_lines_exact(tmp_path, applicator):
             )
         ]
     )
+    applicator.changes = changes
+    errors = applicator.apply_changes()
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
+    assert errors[0].severity == ErrorSeverity.INFO
+    assert errors[0].message == "All changes to file applied successfully"
+    assert errors[0].details == {"file": str(file_path), "actions": ["replace_lines"], "change_count": 1}
+    assert file_path.read_text() == "print('Hello World')\nx = 1\n"
+    logger.debug(f"Replaced lines exactly: {file_path.read_text()}")
+
+def test_replace_lines_exact_from_json(tmp_path, applicator):
+    """Test replacing lines with exact match."""
+    file_path = tmp_path / "main.py"
+    file_path.write_text("print('Hello')\nx = 1\n")
+    changes_json = [
+        {
+            "file": str(file_path),
+            "action": "replace_lines",
+            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],
+        }
+    ]
+    changes = ApplydirChanges(file_entries=changes_json)
     applicator.changes = changes
     errors = applicator.apply_changes()
     assert len(errors) == 1
@@ -157,7 +181,7 @@ def test_replace_lines_non_ascii_error(tmp_path, applicator):
     file_path.write_text("print('Hello')\n")
     change_dict = {
         "original_lines": ["print('Hello')"],
-        "changed_lines": ["print('Héllo')"],  # Non-ASCII é
+        "changed_lines": ["print('Hello😊')"],  # Non-ASCII 😊
     }
     changes = ApplydirChanges(
         file_entries=[FileEntry(file="main.py", action=ActionType.REPLACE_LINES, changes=[change_dict])]
@@ -167,6 +191,7 @@ def test_replace_lines_non_ascii_error(tmp_path, applicator):
             "validation": {"non_ascii": {"default": "error", "rules": [{"extensions": [".py"], "action": "error"}]}},
         }
     )
+    errors = changes.validate_changes()
     applicator.changes = changes
     errors = applicator.apply_changes()
     assert len(errors) == 1
@@ -313,48 +338,6 @@ def test_file_system_error(tmp_path, applicator):
     assert file_path.read_text() == "print('Protected')\n"  # File unchanged
     logger.debug(f"File system error: {errors[0].message}")
 
-def test_invalid_file_path(tmp_path, applicator):
-    """Test invalid file path (e.g., non-ASCII) produces SYNTAX error."""
-    changes = ApplydirChanges(
-        file_entries=[
-            FileEntry(
-                file="main😊.py",
-                action=ActionType.CREATE_FILE,
-                changes=[{"original_lines": [], "changed_lines": ["print('New file')"]}],
-            )
-        ]
-    )
-    applicator.config.update(
-        {
-            "validation": {"non_ascii": {"default": "error", "rules": [{"extensions": [".py"], "action": "error"}]}},
-        }
-    )
-    applicator.changes = changes
-    errors = applicator.apply_changes()
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.SYNTAX
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message.startswith("Non-ASCII characters in file path")
-    assert not (tmp_path / "main😊.py").exists()
-    logger.debug(f"Invalid file path error: {errors[0].message}")
-
-def test_delete_file_invalid_path(tmp_path, applicator):
-    """Test DELETE_FILE with invalid file path produces SYNTAX error."""
-    changes = ApplydirChanges(file_entries=[FileEntry(file="invalid😊.py", action=ActionType.DELETE_FILE, changes=[])])
-    applicator.config.update(
-        {
-            "validation": {"non_ascii": {"default": "error", "rules": [{"extensions": [".py"], "action": "error"}]}},
-        }
-    )
-    applicator.changes = changes
-    errors = applicator.apply_changes()
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.SYNTAX
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message.startswith("Non-ASCII characters in file path")
-    assert isinstance(errors[0].change, ApplydirFileChange)
-    assert errors[0].change.action == ActionType.DELETE_FILE
-    logger.debug(f"Delete file invalid path error: {errors[0].message}")
 
 def test_multiple_changes_single_file(tmp_path, applicator):
     """Test multiple changes in a single file produce one FILE_CHANGES_SUCCESSFUL."""

@@ -6,6 +6,8 @@ validation:
   non_ascii:
     default: warning
     rules:
+      - path:
+        action: error
       - extensions: [".py", ".js"]
         action: error
       - extensions: [".md", ".markdown"]

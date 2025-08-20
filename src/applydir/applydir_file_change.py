@@ -107,31 +107,46 @@ class ApplydirFileChange(BaseModel):
                     )
                 )
 
-        # Determine non-ASCII action based on file extension
-        non_ascii_action = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()
-        file_extension = self.file_path.suffix.lower()
-        non_ascii_rules = config.get("validation", {}).get("non_ascii", {}).get("rules", [])
-        for rule in non_ascii_rules:
-            if file_extension in rule.get("extensions", []):
-                non_ascii_action = rule.get("action", non_ascii_action).lower()
-                break
-        logger.debug(f"Non-ASCII action for {self.file_path}: {non_ascii_action}")
+        errors += self.check_for_non_ascii_chars(config)
 
-        # Apply non-ASCII validation if action is error or warning
-        if non_ascii_action in ["error", "warning"]:
-            for i, line in enumerate(self.changed_lines, 1):
-                if any(ord(char) > 127 for char in line):
+        return errors
+    
+    def non_ascii_errors_from_lines(self, property_name: str, lines_to_check: List[str], severity: ErrorSeverity) -> List[ApplydirError]:
+            errors = []
+            for i, line in enumerate(lines_to_check, 1):
+                if any(ord(char) > 127 for char in str(line)):
+                    # We only care about a single example - saving time by not getting all of them
                     errors.append(
                         ApplydirError(
                             change=self,
                             error_type=ErrorType.SYNTAX,
-                            severity=ErrorSeverity.ERROR if non_ascii_action == "error" else ErrorSeverity.WARNING,
-                            message="Non-ASCII characters found in changed_lines",
+                            severity=severity,
+                            message=f"Non-ASCII characters found in {property_name}",
                             details={"line": line, "line_number": i},
                         )
                     )
+            return errors
+        
+
+    def check_for_non_ascii_chars(self, config: Dict) -> List[ApplydirError]:
+        '''Check for non-ascii characters per config. Returns list of ApplydirErrors when config actions are warning, errror'''
+        # Determine non-ASCII action based on file extension
+
+        errors = []
+
+        non_ascii_severity_for_path = get_non_ascii_severity(config, "path")
+        if non_ascii_severity_for_path in ["error", "warning"]: # Apply non-ASCII validation if action is error or warning
+            # Check path for non-ascii characters
+            errors += self.non_ascii_errors_from_lines("file_path", [self.file_path], non_ascii_severity_for_path)
+
+        non_ascii_severity_for_ext = get_non_ascii_severity(config, "extensions", file_extension=self.file_path.suffix.lower())       
+        if non_ascii_severity_for_ext in ["error", "warning"]: # Apply non-ASCII validation if action is error or warning
+            # Check lines for non-ascii characters
+            errors += self.non_ascii_errors_from_lines("changed_lines", self.changed_lines, non_ascii_severity_for_ext)
+            errors += self.non_ascii_errors_from_lines("original_lines", self.original_lines, non_ascii_severity_for_ext)
 
         return errors
+        
 
     @classmethod
     def from_file_entry(
@@ -150,3 +165,29 @@ class ApplydirFileChange(BaseModel):
         except Exception as e:
             logger.error(f"Failed to create ApplydirFileChange: {str(e)}")
             raise
+
+
+def get_non_ascii_severity(config: Dict, rule_name: str, file_extension : str = None) -> str:
+
+        # Get default
+        non_ascii_severity = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()
+        non_ascii_rules = config.get("validation", {}).get("non_ascii", {}).get("rules", [])
+
+        if rule_name not in ["extensions", "path"]:
+            raise ValueError(f"Unknown rule_name: {rule_name}, expected 'extensions' or 'path'")
+        
+        if rule_name == "extensions" and not file_extension:
+            raise ValueError("Must have an extension when rule name is extension")
+        
+        # Check rules
+        for rule in non_ascii_rules:
+            if rule_name == "extensions" and file_extension in rule.get("extensions", []):
+                non_ascii_severity = rule.get("action", non_ascii_severity).lower()
+                break
+            elif rule_name == "path" and rule.get("path"):
+                non_ascii_severity = rule.get("action", non_ascii_severity).lower()
+                
+
+        logger.debug(f"Non-ASCII action for file_extension '{file_extension}': {non_ascii_severity}")
+        return non_ascii_severity
+    
