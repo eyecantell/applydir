@@ -170,7 +170,7 @@ def test_syntax_error():
 
 
 def test_empty_changed_lines_error():
-    """Test ApplydirError creation for EMPTY_CHANGED_LINES."""
+    """Test ApplydirError creation for CHANGED_LINES_EMPTY."""
     change = ApplydirFileChange(
         file_path="src/main.py",
         original_lines=["print('Hello')"],
@@ -179,12 +179,12 @@ def test_empty_changed_lines_error():
     )
     error = ApplydirError(
         change=change,
-        error_type=ErrorType.EMPTY_CHANGED_LINES,
+        error_type=ErrorType.CHANGED_LINES_EMPTY,
         severity=ErrorSeverity.ERROR,
         message="Empty changed_lines for replace_lines or create_file",
         details={"file": "src/main.py"},
     )
-    assert error.error_type == ErrorType.EMPTY_CHANGED_LINES
+    assert error.error_type == ErrorType.CHANGED_LINES_EMPTY
     assert error.severity == ErrorSeverity.ERROR
     assert error.message == "Empty changed_lines for replace_lines or create_file"
     assert error.details == {"file": "src/main.py"}

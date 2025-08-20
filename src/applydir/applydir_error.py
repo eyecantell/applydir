@@ -13,7 +13,7 @@ class ErrorType(str, Enum):
     CHANGES_EMPTY = "changes_empty"
     FILE_CHANGES_SUCCESSFUL = "file_changes_successful"
     CONFIGURATION = "configuration"
-    EMPTY_CHANGED_LINES = "empty_changed_lines"
+    CHANGED_LINES_EMPTY = "empty_changed_lines"
     FILE_PATH = "file_path"
     FILE_NOT_FOUND = "file_not_found"
     FILE_ALREADY_EXISTS = "file_already_exists"
@@ -30,14 +30,15 @@ class ErrorType(str, Enum):
 
     def __str__(self):
         return {
+            ErrorType.CHANGED_LINES_EMPTY: "Empty changed_lines for replace_lines or create_file",
             ErrorType.CHANGES_EMPTY: "Empty changes array for replace_lines or create_file",
-            ErrorType.FILE_CHANGES_SUCCESSFUL: "All changes to file applied successfully",
             ErrorType.CONFIGURATION: "Invalid configuration",
-            ErrorType.EMPTY_CHANGED_LINES: "Empty changed_lines for replace_lines or create_file",
-            ErrorType.FILE_PATH: "Invalid file path",
-            ErrorType.FILE_NOT_FOUND: "File does not exist",
             ErrorType.FILE_ALREADY_EXISTS: "File already exists",
+            ErrorType.FILE_CHANGES_SUCCESSFUL: "All changes to file applied successfully",
+            ErrorType.FILE_NOT_FOUND: "File does not exist",
+            ErrorType.FILE_PATH: "Invalid file path",
             ErrorType.FILE_SYSTEM: "File system operation failed",
+            ErrorType.INVALID_CHANGE: "Invalid change content for the specified action",
             ErrorType.JSON_STRUCTURE: "Invalid JSON structure or action",
             ErrorType.LINTING: "Linting failed on file (handled by vibedir)",
             ErrorType.MULTIPLE_MATCHES: "Multiple matches found for original_lines",
@@ -46,7 +47,6 @@ class ErrorType(str, Enum):
             ErrorType.ORIG_LINES_NOT_EMPTY: "Non-empty original_lines not allowed for create_file",
             ErrorType.PERMISSION_DENIED: "Permission denied",
             ErrorType.SYNTAX: "Invalid syntax in changed_lines",
-            ErrorType.INVALID_CHANGE: "Invalid change content for the specified action",
         }[self]
 
 

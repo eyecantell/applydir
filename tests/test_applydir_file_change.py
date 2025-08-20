@@ -286,7 +286,7 @@ def test_empty_changed_lines_new_file():
     )
     errors = change.validate_change()
     assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.EMPTY_CHANGED_LINES
+    assert errors[0].error_type == ErrorType.CHANGED_LINES_EMPTY
     assert errors[0].severity == ErrorSeverity.ERROR
     assert errors[0].message == "Empty changed_lines not allowed for create_file"
     logger.debug("Invalid create_file: empty changed_lines")
@@ -314,7 +314,7 @@ def test_action_validation():
     )
     errors = change.validate_change()
     assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.EMPTY_CHANGED_LINES
+    assert errors[0].error_type == ErrorType.CHANGED_LINES_EMPTY
     assert errors[0].severity == ErrorSeverity.ERROR
     assert errors[0].message == "Empty changed_lines not allowed for replace_lines"
     logger.debug(f"Invalid replace_lines: {errors[0]}")
@@ -368,8 +368,8 @@ def test_delete_file_validation():
     errors = change.validate_change()
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.INVALID_CHANGE
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "original_lines and changed_lines must be empty for delete_file"
+    assert errors[0].severity == ErrorSeverity.WARNING
+    assert errors[0].message == "original_lines and changed_lines should be empty for delete_file"
     logger.debug(f"Invalid delete_file: {errors[0]}")
 
 

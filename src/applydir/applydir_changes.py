@@ -8,7 +8,6 @@ from pydantic_core import PydanticCustomError
 
 logger = logging.getLogger("applydir")
 
-
 class FileEntry(BaseModel):
     """Represents a single file entry with a file path, action, and list of changes."""
 
@@ -16,6 +15,14 @@ class FileEntry(BaseModel):
     action: Optional[ActionType] = ActionType.REPLACE_LINES  # Default to replace_lines
     changes: Optional[List[Dict]] = None
     model_config = ConfigDict(extra="ignore")  # Silently ignore extra fields
+
+    @field_validator("file")
+    @classmethod
+    def validate_file(cls, v: str) -> str:
+        """Ensures the file path is a non-empty string."""
+        if not v or not v.strip():
+            raise ValueError("File path must be non-empty")
+        return v
 
     @field_validator("action", mode="before")
     @classmethod
@@ -27,7 +34,6 @@ class FileEntry(BaseModel):
             return ActionType(v)
         except ValueError:
             raise ValueError(f"Invalid action: {v}. Must be 'delete_file', 'replace_lines', or 'create_file'.")
-
 
 class ApplydirChanges(BaseModel):
     """Parses and validates JSON input for applydir changes as a container class."""
@@ -54,70 +60,24 @@ class ApplydirChanges(BaseModel):
                     details={},
                 )
             )
-        else:
-            for i, file_entry in enumerate(v):
-                if not file_entry.file:
-                    errors.append(
-                        ApplydirError(
-                            change=None,
-                            error_type=ErrorType.FILE_PATH,
-                            severity=ErrorSeverity.ERROR,
-                            message="File path missing or empty",
-                            details={},
-                        )
+            raise ValueError(errors)
+        for i, file_entry in enumerate(v):
+            if not file_entry.file:
+                errors.append(
+                    ApplydirError(
+                        change=None,
+                        error_type=ErrorType.FILE_PATH,
+                        severity=ErrorSeverity.ERROR,
+                        message="File path missing or empty",
+                        details={},
                     )
-                if file_entry.action in [ActionType.REPLACE_LINES, ActionType.CREATE_FILE] and not file_entry.changes:
-                    errors.append(
-                        ApplydirError(
-                            change=None,
-                            error_type=ErrorType.CHANGES_EMPTY,
-                            severity=ErrorSeverity.ERROR,
-                            message="Empty changes array for replace_lines or create_file",
-                            details={"file": file_entry.file or ""},
-                        )
-                    )
-                elif file_entry.action == ActionType.DELETE_FILE and file_entry.changes:
-                    logger.warning(f"Ignoring changes for delete_file action in {file_entry.file}")
-                if file_entry.changes:
-                    for j, change in enumerate(file_entry.changes):
-                        if not isinstance(change, dict):
-                            errors.append(
-                                ApplydirError(
-                                    change=None,
-                                    error_type=ErrorType.JSON_STRUCTURE,
-                                    severity=ErrorSeverity.ERROR,
-                                    message="Change must be a dictionary",
-                                    details={"file": file_entry.file or "", "change_index": j},
-                                )
-                            )
-                        if "original_lines" not in change or not isinstance(change["original_lines"], list):
-                            errors.append(
-                                ApplydirError(
-                                    change=None,
-                                    error_type=ErrorType.JSON_STRUCTURE,
-                                    severity=ErrorSeverity.ERROR,
-                                    message="Missing or invalid original_lines (must be list)",
-                                    details={"file": file_entry.file or "", "change_index": j},
-                                )
-                            )
-                        if "changed_lines" not in change or not isinstance(change["changed_lines"], list):
-                            errors.append(
-                                ApplydirError(
-                                    change=None,
-                                    error_type=ErrorType.JSON_STRUCTURE,
-                                    severity=ErrorSeverity.ERROR,
-                                    message="Missing or invalid changed_lines (must be list)",
-                                    details={"file": file_entry.file or "", "change_index": j},
-                                )
-                            )
+                )
         if errors:
-            raise PydanticCustomError(
-                "value_error", str([e.model_dump() for e in errors]), {"errors": [e.model_dump() for e in errors]}
-            )
+            raise ValueError(errors)
         return v
 
     def validate_changes(self, base_dir: str, config_override: Optional[Dict] = None) -> List[ApplydirError]:
-        """Validates all file changes for structure and path containment (no file system existence checks)."""
+        """Validates all file changes for structure (via ApplydirFileChange) and path containment. No file system checks."""
         errors = []
         config = config_override or {}
         logger.debug(f"Config used for validation: {config}")
@@ -150,43 +110,25 @@ class ApplydirChanges(BaseModel):
                 )
                 continue
 
-            # Create change object for DELETE_FILE (structural validation only)
-            change_obj = ApplydirFileChange(
-                file_path=file_path,
-                original_lines=[],
-                changed_lines=[],
-                action=file_entry.action,
-            )
-
-            if file_entry.action in [ActionType.REPLACE_LINES, ActionType.CREATE_FILE]:
-                if not file_entry.changes:
+            # Process changes (or lack thereof if no changes)
+            change_dicts = file_entry.changes or [None]  # Treat empty changes as a single None entry
+            for change in change_dicts:
+                try:
+                    change_obj = ApplydirFileChange.from_file_entry(
+                        file_path=file_path,
+                        action=file_entry.action,
+                        change_dict=change
+                    )
+                    errors.extend(change_obj.validate_change(config=config))
+                except Exception as e:
                     errors.append(
                         ApplydirError(
-                            change=change_obj,
-                            error_type=ErrorType.CHANGES_EMPTY,
+                            change=None,
+                            error_type=ErrorType.JSON_STRUCTURE,
                             severity=ErrorSeverity.ERROR,
-                            message="Empty changes array for replace_lines or create_file",
+                            message=f"Invalid change structure: {str(e)}",
                             details={"file": file_entry.file},
                         )
                     )
-                else:
-                    for change in file_entry.changes:
-                        try:
-                            change_obj = ApplydirFileChange(
-                                file_path=file_path,
-                                original_lines=change.get("original_lines", []),
-                                changed_lines=change.get("changed_lines", []),
-                                action=file_entry.action,
-                            )
-                            errors.extend(change_obj.validate_change(config=config))
-                        except Exception as e:
-                            errors.append(
-                                ApplydirError(
-                                    change=change_obj,
-                                    error_type=ErrorType.JSON_STRUCTURE,
-                                    severity=ErrorSeverity.ERROR,
-                                    message=f"Invalid change structure: {str(e)}",
-                                    details={"file": file_entry.file},
-                                )
-                            )
+
         return errors

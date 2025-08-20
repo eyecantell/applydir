@@ -11,6 +11,7 @@ from pydantic import ValidationError
 # Set up logging for tests
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
+logging.getLogger("applydir").setLevel(logging.DEBUG)
 
 # Configuration matching config.yaml
 TEST_ASCII_CONFIG = {
@@ -172,7 +173,8 @@ def test_changes_for_delete_ignored():
     ]
     changes = ApplydirChanges(file_entries=changes_json)
     errors = changes.validate_changes(base_dir=str(Path.cwd()))
-    assert len(errors) == 0
+    assert len(errors) == 1
+    assert errors[0].severity == ErrorSeverity.WARNING
     logger.debug("Changes for delete_file ignored")
 
 
@@ -236,12 +238,17 @@ def test_missing_file_key():
 
 
 def test_empty_changes_array():
-    """Test empty changes array raises ValidationError."""
+    """Test empty changes array reports errors."""
     changes_json = [{"file": "src/main.py", "action": "replace_lines", "changes": []}]
-    with pytest.raises(ValidationError) as exc_info:
-        ApplydirChanges(file_entries=changes_json)
-    logger.debug(f"Validation error for empty changes: {exc_info.value}")
-    assert "Empty changes array for replace_lines or create_file" in str(exc_info.value)
+
+    changes = ApplydirChanges(file_entries=changes_json)
+    print(f"changes is {changes}")
+    errors = changes.validate_changes(base_dir=str(Path.cwd()))
+    print(f"errors is {errors}")
+    assert len(errors) == 2
+    assert any(ErrorType.ORIG_LINES_EMPTY == err.error_type for err in errors)
+    assert any(ErrorType.CHANGED_LINES_EMPTY == err.error_type for err in errors)
+    logger.debug(f"Valid changes: {changes}")
 
 
 def test_empty_file_entry():

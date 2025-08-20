@@ -68,7 +68,7 @@ class ApplydirFileChange(BaseModel):
                 errors.append(
                     ApplydirError(
                         change=self,
-                        error_type=ErrorType.EMPTY_CHANGED_LINES,
+                        error_type=ErrorType.CHANGED_LINES_EMPTY,
                         severity=ErrorSeverity.ERROR,
                         message="Empty changed_lines not allowed for create_file",
                         details={"file": str(self.file_path)},
@@ -89,7 +89,7 @@ class ApplydirFileChange(BaseModel):
                 errors.append(
                     ApplydirError(
                         change=self,
-                        error_type=ErrorType.EMPTY_CHANGED_LINES,
+                        error_type=ErrorType.CHANGED_LINES_EMPTY,
                         severity=ErrorSeverity.ERROR,
                         message="Empty changed_lines not allowed for replace_lines",
                         details={"file": str(self.file_path)},
@@ -102,7 +102,7 @@ class ApplydirFileChange(BaseModel):
                         change=self,
                         error_type=ErrorType.INVALID_CHANGE,
                         severity=ErrorSeverity.WARNING,  # We allow this per design, but log a warning
-                        message="original_lines and changed_lines must be empty for delete_file",
+                        message="original_lines and changed_lines should be empty for delete_file",
                         details={"file": str(self.file_path)},
                     )
                 )
@@ -139,12 +139,13 @@ class ApplydirFileChange(BaseModel):
     ) -> "ApplydirFileChange":
         """Creates an ApplydirFileChange instance from a FileEntry's change_dict."""
         try:
-            if not change_dict or not isinstance(change_dict, Dict):
-                original_lines = []
-                changed_lines = []
-            else:
+            if change_dict and isinstance(change_dict, Dict):
                 original_lines = change_dict.get("original_lines", [])
                 changed_lines = change_dict.get("changed_lines", [])
+            else:
+                original_lines = []
+                changed_lines = []
+
             return cls(file_path=file_path, original_lines=original_lines, changed_lines=changed_lines, action=action)
         except Exception as e:
             logger.error(f"Failed to create ApplydirFileChange: {str(e)}")
