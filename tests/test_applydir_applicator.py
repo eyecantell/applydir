@@ -176,7 +176,7 @@ def test_delete_file_not_found(tmp_path, applicator):
     logger.debug(f"Delete file not found error: {errors[0].message}")
 
 def test_replace_lines_non_ascii_error(tmp_path, applicator):
-    """Test non-ASCII in changed_lines triggers error in apply_changes."""
+    """Test non-ASCII in changed_lines triggers error in apply_changes if configured as error."""
     file_path = tmp_path / "main.py"
     file_path.write_text("print('Hello')\n")
     change_dict = {
@@ -191,15 +191,15 @@ def test_replace_lines_non_ascii_error(tmp_path, applicator):
             "validation": {"non_ascii": {"default": "error", "rules": [{"extensions": [".py"], "action": "error"}]}},
         }
     )
-    errors = changes.validate_changes()
+    errors = changes.validate_changes(tmp_path, config=applicator.config.as_dict())
     applicator.changes = changes
     errors = applicator.apply_changes()
     assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.SYNTAX
+    assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
     assert errors[0].severity == ErrorSeverity.ERROR
     assert errors[0].message == "Non-ASCII characters found in changed_lines"
     assert isinstance(errors[0].change, ApplydirFileChange)
-    assert errors[0].change.changed_lines == ["print('Héllo')"]
+    assert errors[0].change.changed_lines == ["print('Hello😊')"]
     assert file_path.read_text() == "print('Hello')\n"  # File unchanged
     logger.debug(f"Non-ASCII error: {errors[0].message}")
 

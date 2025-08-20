@@ -4,6 +4,7 @@ from pydantic import BaseModel, field_validator, ValidationInfo, ConfigDict, fie
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from enum import Enum
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -42,15 +43,17 @@ class ApplydirFileChange(BaseModel):
     def validate_file_path_field(cls, v: Path, info: ValidationInfo) -> Path:
         """Ensures the file_path is a valid Path object."""
         if not isinstance(v, Path) or not str(v).strip() or str(v) == ".":
-            raise ValueError("File path must be a valid Path object and non-empty")
+            raise ValueError("File path must be a valid Path object and non-empty (and not '.')")
         return v
 
     def validate_change(self, config: Dict = None) -> List[ApplydirError]:
-        """Validates the change content."""
+        """Validates the change content.  Returns list of AppldirErrors found"""
         errors = []
 
         if config is None:
             config = {}
+
+        logger.debug(f"{self} got config: " + json.dumps(config, indent=4))
 
         # Action-specific validation
         if self.action == ActionType.CREATE_FILE:
@@ -102,7 +105,7 @@ class ApplydirFileChange(BaseModel):
                         change=self,
                         error_type=ErrorType.INVALID_CHANGE,
                         severity=ErrorSeverity.WARNING,  # We allow this per design, but log a warning
-                        message="original_lines and changed_lines should be empty for delete_file",
+                        message="The original_lines and changed_lines should be empty for delete_file",
                         details={"file": str(self.file_path)},
                     )
                 )
@@ -119,7 +122,7 @@ class ApplydirFileChange(BaseModel):
                     errors.append(
                         ApplydirError(
                             change=self,
-                            error_type=ErrorType.SYNTAX,
+                            error_type=ErrorType.NON_ASCII_CHARS,
                             severity=severity,
                             message=f"Non-ASCII characters found in {property_name}",
                             details={"line": line, "line_number": i},
@@ -131,6 +134,9 @@ class ApplydirFileChange(BaseModel):
     def check_for_non_ascii_chars(self, config: Dict) -> List[ApplydirError]:
         '''Check for non-ascii characters per config. Returns list of ApplydirErrors when config actions are warning, errror'''
         # Determine non-ASCII action based on file extension
+
+        if config is None:
+            config = {}
 
         errors = []
 
@@ -169,6 +175,9 @@ class ApplydirFileChange(BaseModel):
 
 def get_non_ascii_severity(config: Dict, rule_name: str, file_extension : str = None) -> str:
 
+        if config is None:
+            config = {}
+
         # Get default
         non_ascii_severity = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()
         non_ascii_rules = config.get("validation", {}).get("non_ascii", {}).get("rules", [])
@@ -187,7 +196,7 @@ def get_non_ascii_severity(config: Dict, rule_name: str, file_extension : str = 
             elif rule_name == "path" and rule.get("path"):
                 non_ascii_severity = rule.get("action", non_ascii_severity).lower()
                 
-
-        logger.debug(f"Non-ASCII action for file_extension '{file_extension}': {non_ascii_severity}")
+        rule_name_str = str(rule_name) + " " + str(file_extension) if file_extension else rule_name
+        logger.debug(f"Non-ASCII action for {rule_name_str}: {non_ascii_severity}")
         return non_ascii_severity
     

@@ -4,6 +4,7 @@ from .applydir_file_change import ApplydirFileChange, ActionType
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from pathlib import Path
 import logging
+import json
 from pydantic_core import PydanticCustomError
 
 logger = logging.getLogger("applydir")
@@ -76,11 +77,13 @@ class ApplydirChanges(BaseModel):
             raise ValueError(errors)
         return v
 
-    def validate_changes(self, base_dir: str, config_override: Optional[Dict] = None) -> List[ApplydirError]:
+    def validate_changes(self, base_dir: str, config: Optional[Dict] = None) -> List[ApplydirError]:
         """Validates all file changes for structure (via ApplydirFileChange) and path containment. No file system checks."""
         errors = []
-        config = config_override or {}
-        logger.debug(f"Config used for validation: {config}")
+        if config is None:
+            config = {}
+
+        logger.debug(f"Config used for validate_changes:" + json.dumps(config, indent=4))
         base_path = Path(base_dir).resolve()
 
         for file_entry in self.file_entries:

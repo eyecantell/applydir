@@ -22,6 +22,7 @@ class ErrorType(str, Enum):
     LINTING = "linting"
     MULTIPLE_MATCHES = "multiple_matches"
     NO_MATCH = "no_match"
+    NON_ASCII_CHARS = "non_ascii_chars"
     ORIG_LINES_EMPTY = "orig_lines_empty"
     ORIG_LINES_NOT_EMPTY = "orig_lines_not_empty"
     PERMISSION_DENIED = "permission_denied"
@@ -43,6 +44,7 @@ class ErrorType(str, Enum):
             ErrorType.LINTING: "Linting failed on file (handled by vibedir)",
             ErrorType.MULTIPLE_MATCHES: "Multiple matches found for original_lines",
             ErrorType.NO_MATCH: "No matching lines found in file",
+            ErrorType.NON_ASCII_CHARS: "Non-ASCII characters detected",
             ErrorType.ORIG_LINES_EMPTY: "Empty original_lines not allowed for replace_lines",
             ErrorType.ORIG_LINES_NOT_EMPTY: "Non-empty original_lines not allowed for create_file",
             ErrorType.PERMISSION_DENIED: "Permission denied",
