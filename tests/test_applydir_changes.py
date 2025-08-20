@@ -26,6 +26,7 @@ TEST_ASCII_CONFIG = {
     }
 }
 
+
 def test_valid_changes():
     """Test valid JSON input with file, action, and changes."""
     changes_json = [
@@ -40,6 +41,7 @@ def test_valid_changes():
     assert len(errors) == 0
     assert changes.file_entries[0].action == "replace_lines"
     logger.debug(f"Valid changes: {changes}")
+
 
 def test_multiple_changes_per_file():
     """Test valid JSON input with multiple changes for a single file."""
@@ -65,12 +67,14 @@ def test_multiple_changes_per_file():
     assert changes.file_entries[0].changes[1]["changed_lines"] == ["print('Good change!')"]
     logger.debug(f"Multiple changes: {changes}")
 
+
 def test_empty_file_entries_array():
     """Test empty file_entries array raises ValidationError."""
     with pytest.raises(ValidationError) as exc_info:
         ApplydirChanges(file_entries=[])
     logger.debug(f"Validation error for empty file_entries: {exc_info.value}")
     assert "JSON must contain a non-empty array of file entries" in str(exc_info.value)
+
 
 def test_invalid_file_change():
     """Test invalid ApplydirFileChange produces errors."""
@@ -92,9 +96,16 @@ def test_invalid_file_change():
     assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
     logger.debug(f"Invalid change: {errors[0]}")
 
+
 def test_path_outside_base_dir():
     """Test file path outside base_dir produces FILE_PATH error."""
-    changes_json = [{"file": "../outside.py", "action": "create_file", "changes": [{"original_lines": [], "changed_lines": ["print('Hello World')"]}]}]
+    changes_json = [
+        {
+            "file": "../outside.py",
+            "action": "create_file",
+            "changes": [{"original_lines": [], "changed_lines": ["print('Hello World')"]}],
+        }
+    ]
     changes = ApplydirChanges(file_entries=changes_json)
     errors = changes.validate_changes(base_dir=str(Path.cwd()))
     assert len(errors) == 1
@@ -103,37 +114,67 @@ def test_path_outside_base_dir():
     assert errors[0].message == "File path is outside project directory"
     logger.debug(f"Path outside base_dir error: {errors[0]}")
 
+
 def test_non_existent_file_no_error():
     """Test non-existent file does not produce error (existence checks moved to applicator)."""
-    changes_json = [{"file": "src/non_existent.py", "action": "replace_lines", "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}]}]
+    changes_json = [
+        {
+            "file": "src/non_existent.py",
+            "action": "replace_lines",
+            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],
+        }
+    ]
     changes = ApplydirChanges(file_entries=changes_json)
     errors = changes.validate_changes(base_dir=str(Path.cwd()))
     assert len(errors) == 0
     logger.debug("Non-existent file: no error in validation")
 
+
 def test_invalid_action():
     """Test invalid action raises ValidationError."""
-    changes_json = [{"file": "src/main.py", "action": "invalid_action", "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}]}]
+    changes_json = [
+        {
+            "file": "src/main.py",
+            "action": "invalid_action",
+            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],
+        }
+    ]
     with pytest.raises(ValidationError) as exc_info:
         ApplydirChanges(file_entries=changes_json)
     logger.debug(f"Validation error for invalid action: {exc_info.value}")
     assert "Invalid action: invalid_action" in str(exc_info.value)
 
+
 def test_extra_fields_ignored():
     """Test extra fields are ignored."""
-    changes_json = [{"file": "src/main.py", "action": "replace_lines", "extra_field": "ignored", "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}]}]
+    changes_json = [
+        {
+            "file": "src/main.py",
+            "action": "replace_lines",
+            "extra_field": "ignored",
+            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],
+        }
+    ]
     changes = ApplydirChanges(file_entries=changes_json)
     errors = changes.validate_changes(base_dir=str(Path.cwd()))
     assert len(errors) == 0
     logger.debug("Extra fields ignored")
 
+
 def test_changes_for_delete_ignored():
     """Test changes for delete_file are ignored."""
-    changes_json = [{"file": "src/old.py", "action": "delete_file", "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}]}]
+    changes_json = [
+        {
+            "file": "src/old.py",
+            "action": "delete_file",
+            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],
+        }
+    ]
     changes = ApplydirChanges(file_entries=changes_json)
     errors = changes.validate_changes(base_dir=str(Path.cwd()))
     assert len(errors) == 0
     logger.debug("Changes for delete_file ignored")
+
 
 def test_invalid_change_type():
     """Test invalid change type raises ValidationError."""
@@ -143,14 +184,22 @@ def test_invalid_change_type():
     logger.debug(f"Validation error for invalid change type: {exc_info.value}")
     assert "Input should be a valid list" in str(exc_info.value)
 
+
 def test_empty_original_lines():
     """Test empty original_lines for replace_lines produces ORIG_LINES_EMPTY error."""
-    changes_json = [{"file": "src/main.py", "action": "replace_lines", "changes": [{"original_lines": [], "changed_lines": ["print('Hello World')"]}]}]
+    changes_json = [
+        {
+            "file": "src/main.py",
+            "action": "replace_lines",
+            "changes": [{"original_lines": [], "changed_lines": ["print('Hello World')"]}],
+        }
+    ]
     changes = ApplydirChanges(file_entries=changes_json)
     errors = changes.validate_changes(base_dir=str(Path.cwd()))
     error_messages = [e.message for e in errors]
     logger.debug(f"Empty original_lines error: {error_messages}")
     assert any("Empty original_lines not allowed for replace_lines" in msg for msg in error_messages)
+
 
 def test_applydir_file_change_creation():
     """Test creation of ApplydirFileChange objects during validation."""
@@ -176,6 +225,7 @@ def test_applydir_file_change_creation():
     assert change_obj.action == ActionType.REPLACE_LINES
     logger.debug(f"ApplydirFileChange created: {change_obj}")
 
+
 def test_missing_file_key():
     """Test missing file key raises ValidationError."""
     changes_json = [{"changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}]}]
@@ -183,6 +233,7 @@ def test_missing_file_key():
         ApplydirChanges(file_entries=changes_json)
     logger.debug(f"Validation error for missing file key: {exc_info.value}")
     assert "Field required" in str(exc_info.value)
+
 
 def test_empty_changes_array():
     """Test empty changes array raises ValidationError."""
@@ -192,6 +243,7 @@ def test_empty_changes_array():
     logger.debug(f"Validation error for empty changes: {exc_info.value}")
     assert "Empty changes array for replace_lines or create_file" in str(exc_info.value)
 
+
 def test_empty_file_entry():
     """Test empty file entry dictionary raises ValidationError."""
     changes_json = [{}]
@@ -199,6 +251,7 @@ def test_empty_file_entry():
         ApplydirChanges(file_entries=changes_json)
     logger.debug(f"Validation error for empty file entry: {exc_info.value}")
     assert "Field required" in str(exc_info.value)
+
 
 def test_multiple_errors():
     """Test multiple validation errors in one JSON input."""
@@ -211,11 +264,15 @@ def test_multiple_errors():
         {
             "file": "src/new.py",
             "action": "create_file",
-            "changes": [{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],  # Non-empty original_lines
+            "changes": [
+                {"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}
+            ],  # Non-empty original_lines
         },
     ]
     changes = ApplydirChanges(file_entries=changes_json)
-    errors = changes.validate_changes(base_dir=str(Path.cwd()), config_override={"validation": {"non_ascii": {"default": "error"}}})
+    errors = changes.validate_changes(
+        base_dir=str(Path.cwd()), config_override={"validation": {"non_ascii": {"default": "error"}}}
+    )
     error_messages = [e.message for e in errors]
     logger.debug(f"Multiple errors: {error_messages}")
     assert len(error_messages) >= 3  # Empty original_lines, non-empty original_lines, non-ASCII

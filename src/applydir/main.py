@@ -8,6 +8,7 @@ from .applydir_matcher import ApplydirMatcher
 from .applydir_applicator import ApplydirApplicator
 from .applydir_error import ApplydirError
 
+
 def main():
     """CLI entry point for applydir utility."""
     parser = argparse.ArgumentParser(description="Applydir: Apply LLM-generated changes to a codebase.")
@@ -78,6 +79,7 @@ def main():
     except Exception as e:
         logger.error(f"Application failed: {str(e)}")
         return 1
+
 
 if __name__ == "__main__":
     exit(main())

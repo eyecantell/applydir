@@ -9,6 +9,7 @@ from pathlib import Path
 
 logger = logging.getLogger("applydir")
 
+
 class ApplydirMatcher:
     """Matches original_lines in file content using exact and optional fuzzy matching."""
 
@@ -38,7 +39,9 @@ class ApplydirMatcher:
 
     def get_similarity_threshold(self, file_path: str) -> float:
         """Determine similarity threshold based on file extension."""
-        default_threshold = self.config.get("matching", {}).get("similarity", {}).get("default", self.default_similarity_threshold)
+        default_threshold = (
+            self.config.get("matching", {}).get("similarity", {}).get("default", self.default_similarity_threshold)
+        )
         if not file_path:
             return default_threshold
         file_extension = Path(file_path).suffix.lower()
@@ -104,7 +107,7 @@ class ApplydirMatcher:
                     error_type=ErrorType.NO_MATCH,
                     severity=ErrorSeverity.ERROR,
                     message="No match: original_lines is empty",
-                    details={"file": str(change.fifile_pathle)},
+                    details={"file": str(change.file_path)},
                 )
             )
             return None, errors
@@ -125,15 +128,15 @@ class ApplydirMatcher:
             if whitespace_handling == "strict":
                 norm = line
             elif whitespace_handling == "collapse":
-                norm = re.sub(r'\s+', ' ', line.strip())
+                norm = re.sub(r"\s+", " ", line.strip())
             elif whitespace_handling in ["remove", "ignore"]:
-                norm = re.sub(r'\s+', '', line.strip())
+                norm = re.sub(r"\s+", "", line.strip())
             else:
-                norm = re.sub(r'\s+', ' ', line.strip())  # Default to collapse
+                norm = re.sub(r"\s+", " ", line.strip())  # Default to collapse
             norm = norm if self.case_sensitive else norm.lower()
             logger.debug(f"Normalized line: '{line}' -> '{norm}' (chars: {[ord(c) for c in norm]})")
             return norm
-        
+
         normalized_original = [normalize(line) for line in change.original_lines]
         normalized_content = [normalize(line) for line in file_content]
         logger.debug(f"Normalized original_lines: {normalized_original}")
@@ -152,7 +155,9 @@ class ApplydirMatcher:
         if not matches and use_fuzzy:
             similarity_threshold = self.get_similarity_threshold(change.file_path)
             similarity_metric = self.get_similarity_metric(change.file_path)
-            logger.debug(f"Fuzzy matching for {change.file_path}, metric: {similarity_metric}, threshold: {similarity_threshold}")
+            logger.debug(
+                f"Fuzzy matching for {change.file_path}, metric: {similarity_metric}, threshold: {similarity_threshold}"
+            )
             for i in range(search_limit):
                 window = normalized_content[i : i + m]
                 logger.debug(f"Checking fuzzy window at index {i}: {window} (size: {len(window)})")
@@ -164,7 +169,9 @@ class ApplydirMatcher:
                         matcher = SequenceMatcher(None, window, normalized_original, autojunk=False)
                         ratio = matcher.ratio()
                         matching_blocks = matcher.get_matching_blocks()
-                    logger.debug(f"Fuzzy match attempt at index {i} for {change.file_path}, metric: {similarity_metric}, ratio: {ratio:.4f}, window: {window}, original: {normalized_original}, matching_blocks: {matching_blocks}")
+                    logger.debug(
+                        f"Fuzzy match attempt at index {i} for {change.file_path}, metric: {similarity_metric}, ratio: {ratio:.4f}, window: {window}, original: {normalized_original}, matching_blocks: {matching_blocks}"
+                    )
                     if ratio >= similarity_threshold:
                         matches.append({"start": i, "end": i + m})
                         logger.debug(f"Fuzzy match found at index {i}, metric: {similarity_metric}, ratio: {ratio:.4f}")
@@ -190,7 +197,11 @@ class ApplydirMatcher:
                     error_type=ErrorType.MULTIPLE_MATCHES,
                     severity=ErrorSeverity.ERROR,
                     message="Multiple matches found for original_lines",
-                    details={"file": str(change.file_path), "match_count": len(matches), "match_indices": [m["start"] for m in matches]},
+                    details={
+                        "file": str(change.file_path),
+                        "match_count": len(matches),
+                        "match_indices": [m["start"] for m in matches],
+                    },
                 )
             )
             return None, errors

@@ -7,10 +7,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ActionType(str, Enum):
     REPLACE_LINES = "replace_lines"
     CREATE_FILE = "create_file"
     DELETE_FILE = "delete_file"
+
 
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
@@ -39,7 +41,7 @@ class ApplydirFileChange(BaseModel):
     @classmethod
     def validate_file_path_field(cls, v: Path, info: ValidationInfo) -> Path:
         """Ensures the file_path is a valid Path object."""
-        if not isinstance(v, Path) or not str(v).strip() or str(v) == '.':
+        if not isinstance(v, Path) or not str(v).strip() or str(v) == ".":
             raise ValueError("File path must and Path object and be non-empty")
         return v
 

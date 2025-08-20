@@ -10,13 +10,13 @@ from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
 
+
 def test_match_replace_lines_single_match():
     """Test single fuzzy match for replace_lines action."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["print('Hello')", "x = 1"]
@@ -26,13 +26,13 @@ def test_match_replace_lines_single_match():
     assert len(errors) == 0
     logger.debug(f"Match found: {result}")
 
+
 def test_match_replace_lines_fuzzy_match():
     """Test fuzzy match within similarity threshold."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["print('Hello ') ", "x = 1"]  # Extra whitespace
@@ -42,13 +42,13 @@ def test_match_replace_lines_fuzzy_match():
     assert len(errors) == 0
     logger.debug(f"Fuzzy match found: {result}")
 
+
 def test_match_replace_lines_no_match():
     """Test no match for replace_lines action."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["print('World')", "x = 1"]
@@ -62,13 +62,13 @@ def test_match_replace_lines_no_match():
     assert errors[0].details == {"file": "src/main.py"}
     logger.debug(f"No match error: {errors[0]}")
 
+
 def test_match_replace_lines_multiple_matches():
     """Test multiple matches for replace_lines action."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["print('Hello')", "x = 1", "print('Hello')"]
@@ -84,13 +84,13 @@ def test_match_replace_lines_multiple_matches():
     assert errors[0].details["match_indices"] == [0, 2]
     logger.debug(f"Multiple matches error: {errors[0]}")
 
+
 def test_match_create_file_skips():
     """Test create_file action skips matching."""
     change = ApplydirFileChange(
-        file="src/new.py",
+        file_path="src/new.py",
         original_lines=[],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.CREATE_FILE,
     )
     file_lines = ["print('Hello')", "x = 1"]
@@ -100,13 +100,13 @@ def test_match_create_file_skips():
     assert len(errors) == 0
     logger.debug("Create file action skipped matching")
 
+
 def test_match_empty_file():
     """Test matching against empty file for replace_lines."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = []
@@ -120,13 +120,13 @@ def test_match_empty_file():
     assert errors[0].details == {"file": "src/main.py"}
     logger.debug(f"Empty file error: {errors[0]}")
 
+
 def test_match_empty_original_lines():
     """Test empty original_lines for replace_lines."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=[],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["print('Hello')", "x = 1"]
@@ -140,13 +140,13 @@ def test_match_empty_original_lines():
     assert errors[0].details == {"file": "src/main.py"}
     logger.debug(f"Empty original_lines error: {errors[0]}")
 
+
 def test_match_partial_match():
     """Test partial match below similarity threshold."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')", "x = 1"],
         changed_lines=["print('Hello World')", "x = 2"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["print('Hello')", "y = 1"]
@@ -160,13 +160,13 @@ def test_match_partial_match():
     assert errors[0].details["file"] == "src/main.py"
     logger.debug(f"Partial match error: {errors[0]}")
 
+
 def test_match_max_search_lines():
     """Test max_search_lines limits matching range."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["x = 1", "y = 2", "print('Hello')"]
@@ -180,13 +180,13 @@ def test_match_max_search_lines():
     assert errors[0].details["file"] == "src/main.py"
     logger.debug(f"Max search lines error: {errors[0]}")
 
+
 def test_match_similarity_threshold():
     """Test similarity threshold prevents low-similarity matches."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["print('Helo')"]  # Close but below threshold
@@ -204,10 +204,9 @@ def test_match_similarity_threshold():
 def test_match_multi_line_single_match():
     """Test single fuzzy match for multi-line original_lines."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')", "x = 1", "y = 2"],
         changed_lines=["print('Hello World')", "x = 2", "y = 3"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["z = 0", "print('Hello')", "x = 1", "y = 2", "end"]
@@ -221,10 +220,9 @@ def test_match_multi_line_single_match():
 def test_match_replace_lines_fuzzy_match():
     """Test fuzzy match within similarity threshold."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["print('Hello ') ", "x = 1"]  # Extra whitespace
@@ -232,22 +230,13 @@ def test_match_replace_lines_fuzzy_match():
         case_sensitive=False,
         config={
             "matching": {
-                "whitespace": {
-                    "default": "collapse",
-                    "rules": [{"extensions": [".py"], "handling": "remove"}]
-                },
-                "similarity": {
-                    "default": 0.95,
-                    "rules": [{"extensions": [".py"], "threshold": 0.8}]
-                },
+                "whitespace": {"default": "collapse", "rules": [{"extensions": [".py"], "handling": "remove"}]},
+                "similarity": {"default": 0.95, "rules": [{"extensions": [".py"], "threshold": 0.8}]},
                 "similarity_metric": {
                     "default": "sequence_matcher",
-                    "rules": [{"extensions": [".py"], "metric": "levenshtein"}]
+                    "rules": [{"extensions": [".py"], "metric": "levenshtein"}],
                 },
-                "use_fuzzy": {
-                    "default": True,
-                    "rules": [{"extensions": [".py"], "use_fuzzy": True}]
-                }
+                "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": True}]},
             }
         },
     )
@@ -256,13 +245,13 @@ def test_match_replace_lines_fuzzy_match():
     assert len(errors) == 0
     logger.debug(f"Fuzzy match with whitespace: {result}")
 
+
 def test_match_fuzzy_typos_and_case():
     """Test fuzzy match with typos and case differences."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["Print('Helo')", "x = 1"]  # Case difference and typo
@@ -270,22 +259,13 @@ def test_match_fuzzy_typos_and_case():
         case_sensitive=False,
         config={
             "matching": {
-                "whitespace": {
-                    "default": "collapse",
-                    "rules": [{"extensions": [".py"], "handling": "remove"}]
-                },
-                "similarity": {
-                    "default": 0.95,
-                    "rules": [{"extensions": [".py"], "threshold": 0.5}]
-                },
+                "whitespace": {"default": "collapse", "rules": [{"extensions": [".py"], "handling": "remove"}]},
+                "similarity": {"default": 0.95, "rules": [{"extensions": [".py"], "threshold": 0.5}]},
                 "similarity_metric": {
                     "default": "sequence_matcher",
-                    "rules": [{"extensions": [".py"], "metric": "levenshtein"}]
+                    "rules": [{"extensions": [".py"], "metric": "levenshtein"}],
                 },
-                "use_fuzzy": {
-                    "default": True,
-                    "rules": [{"extensions": [".py"], "use_fuzzy": True}]
-                }
+                "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": True}]},
             }
         },
     )
@@ -294,13 +274,13 @@ def test_match_fuzzy_typos_and_case():
     assert len(errors) == 0
     logger.debug(f"Fuzzy match with typos and case: {result}")
 
+
 def test_match_exact_only():
     """Test exact match without fuzzy fallback."""
     change = ApplydirFileChange(
-        file="src/main.py",
+        file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
-        base_dir=Path.cwd(),
         action=ActionType.REPLACE_LINES,
     )
     file_lines = ["print('Hello')", "x = 1"]  # Exact match
@@ -308,14 +288,8 @@ def test_match_exact_only():
         case_sensitive=False,
         config={
             "matching": {
-                "whitespace": {
-                    "default": "collapse",
-                    "rules": [{"extensions": [".py"], "handling": "remove"}]
-                },
-                "use_fuzzy": {
-                    "default": True,
-                    "rules": [{"extensions": [".py"], "use_fuzzy": False}]
-                }
+                "whitespace": {"default": "collapse", "rules": [{"extensions": [".py"], "handling": "remove"}]},
+                "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": False}]},
             }
         },
     )

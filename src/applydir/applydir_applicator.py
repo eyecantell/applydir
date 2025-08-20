@@ -10,6 +10,7 @@ from typing import List, Optional, Dict
 
 logger = logging.getLogger("applydir")
 
+
 class ApplydirApplicator:
     """Applies validated changes to files."""
 
@@ -197,7 +198,7 @@ class ApplydirApplicator:
         if range:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read().splitlines()
-            content[range["start"]:range["end"]] = changed_lines
+            content[range["start"] : range["end"]] = changed_lines
         else:
             content = changed_lines
         with open(file_path, "w", encoding="utf-8") as f:

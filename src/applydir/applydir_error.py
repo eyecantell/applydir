@@ -2,10 +2,12 @@ from typing import Optional, Dict
 from pydantic import BaseModel, field_validator, ConfigDict, field_serializer
 from enum import Enum
 
+
 class ErrorSeverity(str, Enum):
     ERROR = "error"
     WARNING = "warning"
     INFO = "info"
+
 
 class ErrorType(str, Enum):
     CHANGES_EMPTY = "changes_empty"
@@ -46,6 +48,7 @@ class ErrorType(str, Enum):
             ErrorType.SYNTAX: "Invalid syntax in changed_lines",
             ErrorType.INVALID_CHANGE: "Invalid change content for the specified action",
         }[self]
+
 
 class ApplydirError(BaseModel):
     change: Optional["ApplydirFileChange"] = None  # Forward reference
