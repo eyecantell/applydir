@@ -290,13 +290,18 @@ def test_delete_file_with_changes_ignored(tmp_path, applicator):
     ])
     applicator.changes = changes
     errors = applicator.apply_changes()
-    assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
-    assert errors[0].severity == ErrorSeverity.INFO
-    assert errors[0].message == "All changes to file applied successfully"
-    assert errors[0].details == {"file": str(file_path), "actions": ["delete_file"], "change_count": 1}
+    assert len(errors) == 2
+    assert errors[0].error_type == ErrorType.INVALID_CHANGE
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert "original_lines and changed_lines must be empty for delete_file" in errors[0].message
+    assert isinstance(errors[0].change, ApplydirFileChange)
+    assert errors[0].change.changed_lines == ["print('New content')"]
+    assert errors[1].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
+    assert errors[1].severity == ErrorSeverity.INFO
+    assert errors[1].message == "All changes to file applied successfully"
+    assert errors[1].details == {"file": str(file_path), "actions": ["delete_file"], "change_count": 1}
     assert not file_path.exists()
-    logger.debug("DELETE_FILE with changes ignored successfully")
+    logger.debug("DELETE_FILE with invalid changes produces error and deletes successfully")
 
 def test_delete_disabled(tmp_path, applicator):
     """Test deletion disabled in config produces PERMISSION_DENIED error."""
@@ -369,9 +374,7 @@ def test_invalid_file_path(tmp_path, applicator):
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.ERROR
-    assert "Non-ASCII characters found in file_path" in errors[0].message
-    assert isinstance(errors[0].change, ApplydirFileChange)
-    assert errors[0].change.changed_lines == ["print('New file')"]
+    assert "File path must be a valid Path object and non-empty" in errors[0].message
     assert not (tmp_path / "main😊.py").exists()
     logger.debug(f"Invalid file path error: {errors[0].message}")
 
@@ -393,7 +396,7 @@ def test_delete_file_invalid_path(tmp_path, applicator):
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.SYNTAX
     assert errors[0].severity == ErrorSeverity.ERROR
-    assert "Non-ASCII characters found in file_path" in errors[0].message
+    assert "File path must be a valid Path object and non-empty" in errors[0].message
     assert isinstance(errors[0].change, ApplydirFileChange)
     assert errors[0].change.action == ActionType.DELETE_FILE
     logger.debug(f"Delete file invalid path error: {errors[0].message}")
@@ -466,3 +469,128 @@ def test_mixed_success_failure_single_file(tmp_path, applicator):
     assert errors[1].details == {"file": str(file_path), "actions": ["replace_lines"], "change_count": 1}
     assert file_path.read_text() == "print('Hello')\nprint('Hello')\nx = 10\n"
     logger.debug(f"Mixed success/failure: {file_path.read_text()}")
+
+def test_empty_changes_create_file(tmp_path, applicator):
+    """Test CREATE_FILE with empty changes produces EMPTY_CHANGED_LINES error."""
+    file_path = tmp_path / "new.py"
+    changes = ApplydirChanges(file_entries=[
+        FileEntry(
+            file="new.py",
+            action=ActionType.CREATE_FILE,
+            changes=[]
+        )
+    ])
+    applicator.changes = changes
+    errors = applicator.apply_changes()
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.EMPTY_CHANGED_LINES
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Empty changed_lines not allowed for create_file"
+    assert isinstance(errors[0].change, ApplydirFileChange)
+    assert errors[0].change.changed_lines == []
+    assert not file_path.exists()
+    logger.debug(f"Empty changes for CREATE_FILE error: {errors[0].message}")
+
+def test_empty_changes_replace_lines(tmp_path, applicator):
+    """Test REPLACE_LINES with empty changes produces EMPTY_CHANGED_LINES and ORIG_LINES_EMPTY errors."""
+    file_path = tmp_path / "main.py"
+    file_path.write_text("print('Hello')\n")
+    changes = ApplydirChanges(file_entries=[
+        FileEntry(
+            file="main.py",
+            action=ActionType.REPLACE_LINES,
+            changes=[]
+        )
+    ])
+    applicator.changes = changes
+    errors = applicator.apply_changes()
+    assert len(errors) == 2
+    assert errors[0].error_type == ErrorType.ORIG_LINES_EMPTY
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Empty original_lines not allowed for replace_lines"
+    assert isinstance(errors[0].change, ApplydirFileChange)
+    assert errors[0].change.changed_lines == []
+    assert errors[1].error_type == ErrorType.EMPTY_CHANGED_LINES
+    assert errors[1].severity == ErrorSeverity.ERROR
+    assert errors[1].message == "Empty changed_lines not allowed for replace_lines"
+    assert isinstance(errors[1].change, ApplydirFileChange)
+    assert file_path.read_text() == "print('Hello')\n"  # File unchanged
+    logger.debug(f"Empty changes for REPLACE_LINES error: {errors[0].message}, {errors[1].message}")
+
+def test_malformed_change_dict(tmp_path, applicator):
+    """Test malformed change_dict produces INVALID_CHANGE error."""
+    file_path = tmp_path / "main.py"
+    file_path.write_text("print('Hello')\n")
+    changes = ApplydirChanges(file_entries=[
+        FileEntry(
+            file="main.py",
+            action=ActionType.REPLACE_LINES,
+            changes=[{
+                "original_lines": None,  # Invalid: None instead of list
+                "changed_lines": ["print('Updated')"]
+            }]
+        )
+    ])
+    applicator.changes = changes
+    errors = applicator.apply_changes()
+    assert len(errors) == 2
+    assert errors[0].error_type == ErrorType.ORIG_LINES_EMPTY
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Empty original_lines not allowed for replace_lines"
+    assert isinstance(errors[0].change, ApplydirFileChange)
+    assert errors[0].change.changed_lines == ["print('Updated')"]
+    assert errors[1].error_type == ErrorType.EMPTY_CHANGED_LINES
+    assert errors[1].severity == ErrorSeverity.ERROR
+    assert errors[1].message == "Empty changed_lines not allowed for replace_lines"
+    assert isinstance(errors[1].change, ApplydirFileChange)
+    assert file_path.read_text() == "print('Hello')\n"  # File unchanged
+    logger.debug(f"Malformed change_dict error: {errors[0].message}, {errors[1].message}")
+
+def test_invalid_action(tmp_path, applicator):
+    """Test invalid action produces INVALID_CHANGE error."""
+    file_path = tmp_path / "main.py"
+    file_path.write_text("print('Hello')\n")
+    changes = ApplydirChanges(file_entries=[
+        FileEntry(
+            file="main.py",
+            action="invalid_action",  # Invalid action
+            changes=[{
+                "original_lines": ["print('Hello')"],
+                "changed_lines": ["print('Updated')"]
+            }]
+        )
+    ])
+    applicator.changes = changes
+    errors = applicator.apply_changes()
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.INVALID_CHANGE
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert "Unsupported action: invalid_action" in errors[0].message
+    assert file_path.read_text() == "print('Hello')\n"  # File unchanged
+    logger.debug(f"Invalid action error: {errors[0].message}")
+
+def test_non_dict_change_dict(tmp_path, applicator):
+    """Test non-dict change_dict produces EMPTY_CHANGED_LINES and ORIG_LINES_EMPTY errors."""
+    file_path = tmp_path / "main.py"
+    file_path.write_text("print('Hello')\n")
+    changes = ApplydirChanges(file_entries=[
+        FileEntry(
+            file="main.py",
+            action=ActionType.REPLACE_LINES,
+            changes=["invalid_change_dict"]  # Non-dict change_dict
+        )
+    ])
+    applicator.changes = changes
+    errors = applicator.apply_changes()
+    assert len(errors) == 2
+    assert errors[0].error_type == ErrorType.ORIG_LINES_EMPTY
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "Empty original_lines not allowed for replace_lines"
+    assert isinstance(errors[0].change, ApplydirFileChange)
+    assert errors[0].change.changed_lines == []
+    assert errors[1].error_type == ErrorType.EMPTY_CHANGED_LINES
+    assert errors[1].severity == ErrorSeverity.ERROR
+    assert errors[1].message == "Empty changed_lines not allowed for replace_lines"
+    assert isinstance(errors[1].change, ApplydirFileChange)
+    assert file_path.read_text() == "print('Hello')\n"  # File unchanged
+    logger.debug(f"Non-dict change_dict error: {errors[0].message}, {errors[1].message}")

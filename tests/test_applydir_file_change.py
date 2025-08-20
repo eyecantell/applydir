@@ -50,7 +50,7 @@ def test_empty_file_path():
             action=ActionType.REPLACE_LINES,
         )
     logger.debug(f"Validation error for empty path: {exc_info.value}")
-    assert "File path must and Path object and be non-empty" in str(exc_info.value)
+    assert "File path must be a valid Path object and non-empty" in str(exc_info.value)
 
 
 def test_non_ascii_error():

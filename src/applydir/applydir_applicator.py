@@ -10,6 +10,7 @@ from typing import List, Optional, Dict
 
 logger = logging.getLogger("applydir")
 
+
 class ApplydirApplicator:
     """Applies validated changes to files."""
 
@@ -54,7 +55,11 @@ class ApplydirApplicator:
             changes = []
             try:
                 # For DELETE_FILE or empty changes, create one change with None change_dict
-                change_dicts = [None] if file_entry.action == ActionType.DELETE_FILE or not file_entry.changes else file_entry.changes
+                change_dicts = (
+                    [None]
+                    if file_entry.action == ActionType.DELETE_FILE or not file_entry.changes
+                    else file_entry.changes
+                )
                 for change_dict in change_dicts:
                     try:
                         change = ApplydirFileChange.from_file_entry(file_path, file_entry.action, change_dict)
@@ -103,7 +108,7 @@ class ApplydirApplicator:
                         file_errors.extend(self.replace_lines(file_path, change))
                     elif change.action == ActionType.DELETE_FILE:
                         file_errors.extend(self.delete_file(file_path, change))
-                    if not any(e.severity == ErrorSeverity.ERROR for e in file_errors[-len(file_errors):]):
+                    if not any(e.severity == ErrorSeverity.ERROR for e in file_errors[-len(file_errors) :]):
                         change_count += 1
                         actions.add(change.action.value)
                 except Exception as e:
@@ -126,11 +131,7 @@ class ApplydirApplicator:
                         error_type=ErrorType.FILE_CHANGES_SUCCESSFUL,
                         severity=ErrorSeverity.INFO,
                         message="All changes to file applied successfully",
-                        details={
-                            "file": str(file_path),
-                            "actions": list(actions),
-                            "change_count": change_count
-                        },
+                        details={"file": str(file_path), "actions": list(actions), "change_count": change_count},
                     )
                 )
         return errors
@@ -244,7 +245,7 @@ class ApplydirApplicator:
         if range:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read().splitlines()
-            content[range["start"]:range["end"]] = changed_lines
+            content[range["start"] : range["end"]] = changed_lines
         else:
             content = changed_lines
         with open(file_path, "w", encoding="utf-8") as f:

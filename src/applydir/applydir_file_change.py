@@ -7,10 +7,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ActionType(str, Enum):
     REPLACE_LINES = "replace_lines"
     CREATE_FILE = "create_file"
     DELETE_FILE = "delete_file"
+
 
 class ApplydirFileChange(BaseModel):
     """Represents a single file change with original and changed lines."""
@@ -132,21 +134,18 @@ class ApplydirFileChange(BaseModel):
         return errors
 
     @classmethod
-    def from_file_entry(cls, file_path: Path, action: ActionType, change_dict: Optional[Dict] = None) -> "ApplydirFileChange":
+    def from_file_entry(
+        cls, file_path: Path, action: ActionType, change_dict: Optional[Dict] = None
+    ) -> "ApplydirFileChange":
         """Creates an ApplydirFileChange instance from a FileEntry's change_dict."""
         try:
             if not change_dict or not isinstance(change_dict, Dict):
                 original_lines = []
                 changed_lines = []
             else:
-                original_lines = change_dict.get("original_lines", []) 
+                original_lines = change_dict.get("original_lines", [])
                 changed_lines = change_dict.get("changed_lines", [])
-            return cls(
-                file_path=file_path,
-                original_lines=original_lines,
-                changed_lines=changed_lines,
-                action=action
-            )
+            return cls(file_path=file_path, original_lines=original_lines, changed_lines=changed_lines, action=action)
         except Exception as e:
             logger.error(f"Failed to create ApplydirFileChange: {str(e)}")
             raise
