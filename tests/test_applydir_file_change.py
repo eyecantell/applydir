@@ -442,19 +442,24 @@ def test_non_ascii_md_file_ignore():
 def test_multiple_non_ascii_errors():
     """Test multiple non-ASCII characters in changed_lines generate one error."""
     change = ApplydirFileChange(
-        file_path=Path("src/main.py"),
-        original_lines=["print('Hello')"],
-        changed_lines=["print('Hello 😊')", "print('World 😊')"],
+        file_path=Path("src/main❤️.py"),
+        original_lines=["print('Hel👍lo')"],
+        changed_lines=["print('Hello 😊')", "line two", "print('World 😊')", "line four"],
         action=ActionType.REPLACE_LINES,
     )
     errors = change.validate_change(config=TEST_ASCII_CONFIG)
-    assert len(errors) == 2
+    print("errors are:\n" + "\n".join([str(err) for err in errors]))
+    print("error messages are:\n" + "\n".join([str(err.message) for err in errors]))
+    assert len(errors) == 4
     assert all(ErrorType.NON_ASCII_CHARS == err.error_type for err in errors)
     assert all(ErrorSeverity.ERROR == err.severity for err in errors)
     
     assert any("Non-ASCII characters found in changed_lines" == err.message for err in errors)
+    assert any("Non-ASCII characters found in original_lines" == err.message for err in errors)
+    assert any("Non-ASCII characters found in file_path" == err.message for err in errors)
     assert any({"line": "print('Hello 😊')", "line_number": 1} == err.details for err in errors)
-    assert any({"line": "print('World 😊')", "line_number": 2} == err.details for err in errors)
+    assert any({"line": "print('World 😊')", "line_number": 3} == err.details for err in errors)
+    assert any({'line': 'src/main❤️.py', 'line_number': 1} == err.details for err in errors)
 
 
 
