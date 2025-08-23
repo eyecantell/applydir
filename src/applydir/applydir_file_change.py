@@ -178,8 +178,8 @@ def get_non_ascii_severity(config: Dict, rule_name: str, file_extension : str = 
             config = {}
 
         # Get default
-        non_ascii_severity = config.get("validation", {}).get("non_ascii", {}).get("default", "ignore").lower()
-        non_ascii_rules = config.get("validation", {}).get("non_ascii", {}).get("rules", [])
+        non_ascii_severity = config.get("validation", config.get("VALIDATION", {})).get("non_ascii", {}).get("default", "ignore").lower()
+        non_ascii_rules = config.get("validation", config.get("VALIDATION", {})).get("non_ascii", {}).get("rules", [])
 
         if rule_name not in ["extensions", "path"]:
             raise ValueError(f"Unknown rule_name: {rule_name}, expected 'extensions' or 'path'")

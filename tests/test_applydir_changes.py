@@ -88,10 +88,10 @@ def test_invalid_file_change():
     ]
     changes = ApplydirChanges(file_entries=changes_json)
     errors = changes.validate_changes(
-        base_dir=str(Path.cwd()), config_override={"validation": {"non_ascii": {"default": "error"}}}
+        base_dir=str(Path.cwd()), config={"validation": {"non_ascii": {"default": "error"}}}
     )
     assert len(errors) == 1
-    assert errors[0].error_type == ErrorType.SYNTAX
+    assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
     assert errors[0].severity == ErrorSeverity.ERROR
     assert errors[0].message == "Non-ASCII characters found in changed_lines"
     assert errors[0].details == {"line": "print('Hello 😊')", "line_number": 1}
@@ -278,7 +278,7 @@ def test_multiple_errors():
     ]
     changes = ApplydirChanges(file_entries=changes_json)
     errors = changes.validate_changes(
-        base_dir=str(Path.cwd()), config_override={"validation": {"non_ascii": {"default": "error"}}}
+        base_dir=str(Path.cwd()), config={"validation": {"non_ascii": {"default": "error"}}}
     )
     error_messages = [e.message for e in errors]
     logger.debug(f"Multiple errors: {error_messages}")

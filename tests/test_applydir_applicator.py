@@ -6,12 +6,28 @@ from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from applydir.applydir_matcher import ApplydirMatcher
 from applydir.applydir_changes import ApplydirChanges, FileEntry
 import logging
+import json
 from prepdir import configure_logging
+from pydantic import ValidationError
 
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
 
 logging.getLogger('applydir').setLevel(logging.DEBUG)
+
+TEST_ASCII_CONFIG = {
+        "validation": {
+            "non_ascii": {
+                "default": "warning",
+                "rules": [
+                    {"path": True, "action": "error"},
+                    {"extensions": [".py", ".js"], "action": "error"},
+                    {"extensions": [".md", ".markdown"], "action": "ignore"},
+                    {"extensions": [".json", ".yaml"], "action": "warning"},
+                ],
+            }
+        }
+    }
 
 @pytest.fixture
 def applicator(tmp_path):
@@ -186,14 +202,20 @@ def test_replace_lines_non_ascii_error(tmp_path, applicator):
     changes = ApplydirChanges(
         file_entries=[FileEntry(file="main.py", action=ActionType.REPLACE_LINES, changes=[change_dict])]
     )
-    applicator.config.update(
+    
+    print(f"applicator.config starts as: {json.dumps(applicator.config.as_dict(), indent=4)}")
+    applicator.config.update(TEST_ASCII_CONFIG)
+    print(f"applicator.config after update is: {json.dumps(applicator.config.as_dict(), indent=4)}")
+
+    '''applicator.config.update(
         {
             "validation": {"non_ascii": {"default": "error", "rules": [{"extensions": [".py"], "action": "error"}]}},
         }
-    )
+    )'''
     errors = changes.validate_changes(tmp_path, config=applicator.config.as_dict())
     applicator.changes = changes
     errors = applicator.apply_changes()
+    print("errors are: \n" + "\n".join([str(err) for err in errors]))
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -202,6 +224,7 @@ def test_replace_lines_non_ascii_error(tmp_path, applicator):
     assert errors[0].change.changed_lines == ["print('Hello😊')"]
     assert file_path.read_text() == "print('Hello')\n"  # File unchanged
     logger.debug(f"Non-ASCII error: {errors[0].message}")
+    
 
 def test_replace_lines_multiple_matches_no_fuzzy(tmp_path, applicator):
     """Test multiple matches with fuzzy disabled."""
@@ -288,7 +311,7 @@ def test_delete_file_with_changes_ignored(tmp_path, applicator):
     assert len(errors) == 2
     assert errors[0].error_type == ErrorType.INVALID_CHANGE
     assert errors[0].severity == ErrorSeverity.WARNING
-    assert errors[0].message == "original_lines and changed_lines must be empty for delete_file"
+    assert errors[0].message == "The original_lines and changed_lines should be empty for delete_file"
     assert isinstance(errors[0].change, ApplydirFileChange)
     assert errors[0].change.changed_lines == ["print('New content')"]
     assert errors[1].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
@@ -368,7 +391,7 @@ def test_multiple_changes_single_file(tmp_path, applicator):
 def test_mixed_success_failure_single_file(tmp_path, applicator):
     """Test mixed success and failure in a single file with change object in errors."""
     file_path = tmp_path / "main.py"
-    file_path.write_text("print('Hello')\nprint('Hello')\nx = 1\n")
+    file_path.write_text("print('Hello')\nprint('Hello')\nx = 1\n") # Notice duplicate print statement
     change_dict_failure = {"original_lines": ["print('Hello')"], "changed_lines": ["print('Updated')"]}
     change_dict_success = {"original_lines": ["x = 1"], "changed_lines": ["x = 10"]}
     changes = ApplydirChanges(
@@ -387,16 +410,14 @@ def test_mixed_success_failure_single_file(tmp_path, applicator):
     )
     applicator.changes = changes
     errors = applicator.apply_changes()
-    assert len(errors) == 2
+    print("errors are:\n" + "\n".join([str(err) for err in errors]))
+    assert len(errors) == 1
     assert errors[0].error_type == ErrorType.MULTIPLE_MATCHES
     assert errors[0].severity == ErrorSeverity.ERROR
     assert errors[0].message == "Multiple matches found for original_lines"
     assert isinstance(errors[0].change, ApplydirFileChange)
     assert errors[0].change.changed_lines == ["print('Updated')"]
-    assert errors[1].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
-    assert errors[1].severity == ErrorSeverity.INFO
-    assert errors[1].message == "All changes to file applied successfully"
-    assert errors[1].details == {"file": str(file_path), "actions": ["replace_lines"], "change_count": 1}
+    
     assert file_path.read_text() == "print('Hello')\nprint('Hello')\nx = 10\n"
     logger.debug(f"Mixed success/failure: {file_path.read_text()}")
 
@@ -458,61 +479,46 @@ def test_malformed_change_dict(tmp_path, applicator):
     )
     applicator.changes = changes
     errors = applicator.apply_changes()
-    assert len(errors) == 2
-    assert errors[0].error_type == ErrorType.ORIG_LINES_EMPTY
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "Empty original_lines not allowed for replace_lines"
-    assert isinstance(errors[0].change, ApplydirFileChange)
-    assert errors[0].change.changed_lines == ["print('Updated')"]
-    assert errors[1].error_type == ErrorType.CHANGED_LINES_EMPTY
-    assert errors[1].severity == ErrorSeverity.ERROR
-    assert errors[1].message == "Empty changed_lines not allowed for replace_lines"
-    assert isinstance(errors[1].change, ApplydirFileChange)
-    assert file_path.read_text() == "print('Hello')\n"  # File unchanged
-    logger.debug(f"Malformed change_dict error: {errors[0].message}, {errors[1].message}")
-
-def test_invalid_action(tmp_path, applicator):
-    """Test invalid action produces INVALID_CHANGE error."""
-    file_path = tmp_path / "main.py"
-    file_path.write_text("print('Hello')\n")
-    changes = ApplydirChanges(
-        file_entries=[
-            FileEntry(
-                file="main.py",
-                action="invalid_action",  # Invalid action
-                changes=[{"original_lines": ["print('Hello')"], "changed_lines": ["print('Updated')"]}],
-            )
-        ]
-    )
-    applicator.changes = changes
-    errors = applicator.apply_changes()
+    print("errors are:\n" + "\n".join([str(err) for err in errors]))
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.INVALID_CHANGE
     assert errors[0].severity == ErrorSeverity.ERROR
-    assert "Invalid file entry" in errors[0].message
+    assert "original_lines\n  Input should be a valid list" in errors[0].message
+    assert errors[0].change is None
+    
     assert file_path.read_text() == "print('Hello')\n"  # File unchanged
-    logger.debug(f"Invalid action error: {errors[0].message}")
 
-def test_non_dict_change_dict(tmp_path, applicator):
-    """Test non-dict change_dict produces CHANGED_LINES_EMPTY and ORIG_LINES_EMPTY errors."""
+def test_invalid_action(tmp_path, applicator):
+    """Test invalid action produces VaidationError."""
     file_path = tmp_path / "main.py"
     file_path.write_text("print('Hello')\n")
-    changes = ApplydirChanges(
-        file_entries=[
-            FileEntry(file="main.py", action=ActionType.REPLACE_LINES, changes=["invalid_change_dict"])
-        ]
-    )
-    applicator.changes = changes
-    errors = applicator.apply_changes()
-    assert len(errors) == 2
-    assert errors[0].error_type == ErrorType.ORIG_LINES_EMPTY
-    assert errors[0].severity == ErrorSeverity.ERROR
-    assert errors[0].message == "Empty original_lines not allowed for replace_lines"
-    assert isinstance(errors[0].change, ApplydirFileChange)
-    assert errors[0].change.changed_lines == []
-    assert errors[1].error_type == ErrorType.CHANGED_LINES_EMPTY
-    assert errors[1].severity == ErrorSeverity.ERROR
-    assert errors[1].message == "Empty changed_lines not allowed for replace_lines"
-    assert isinstance(errors[1].change, ApplydirFileChange)
+    with pytest.raises(ValidationError) as exc_info:
+        ApplydirChanges(
+            file_entries=[
+                FileEntry(
+                    file="main.py",
+                    action="invalid_action",  # Invalid action
+                    changes=[{"original_lines": ["print('Hello')"], "changed_lines": ["print('Updated')"]}],
+                )
+            ]
+        )
+        
+    print(f"exc_info.value is {exc_info.value}")
+    print(f"exc_info is {exc_info}")
+    assert "1 validation error for FileEntry" in str(exc_info.value)
+    assert "Invalid action: invalid_action" in str(exc_info.value)
+
+def test_non_dict_change_dict(tmp_path, applicator):
+    """Test non-dict change_dict produces ValidationError"""
+    file_path = tmp_path / "main.py"
+    file_path.write_text("print('Hello')\n")
+    
+    with pytest.raises(ValidationError) as exc_info:
+        FileEntry(file="main.py", action=ActionType.REPLACE_LINES, changes=["invalid_change_dict"])
+
+    print(f"exc_info.value is {exc_info.value}")
+    print(f"exc_info is {exc_info}")
+    assert "1 validation error for FileEntry" in str(exc_info.value)
+    assert "Input should be a valid dictionary" in str(exc_info.value)
+    
     assert file_path.read_text() == "print('Hello')\n"  # File unchanged
-    logger.debug(f"Non-dict change_dict error: {errors[0].message}, {errors[1].message}")

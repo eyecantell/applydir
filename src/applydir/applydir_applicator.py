@@ -93,7 +93,7 @@ class ApplydirApplicator:
 
             # Validate and process changes
             for change in changes:
-                validation_errors = change.validate_change(self.config.get("validation", {}))
+                validation_errors = change.validate_change(self.config.as_dict())
                 file_errors.extend(validation_errors)
                 if any(e.severity == ErrorSeverity.ERROR for e in validation_errors):
                     continue
