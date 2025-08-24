@@ -9,6 +9,7 @@ from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
 # Set up logging for tests
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
+logging.getLogger('applydir').setLevel(logging.DEBUG)
 
 
 def test_match_replace_lines_single_match():
@@ -27,15 +28,15 @@ def test_match_replace_lines_single_match():
     logger.debug(f"Match found: {result}")
 
 
-def test_match_replace_lines_fuzzy_match():
-    """Test fuzzy match within similarity threshold."""
+def test_match_replace_lines_whitespace_match():
+    """Test whitespace match within similarity threshold."""
     change = ApplydirFileChange(
         file_path="src/main.py",
         original_lines=["print('Hello')"],
         changed_lines=["print('Hello World')"],
         action=ActionType.REPLACE_LINES,
     )
-    file_lines = ["print('Hello ') ", "x = 1"]  # Extra whitespace
+    file_lines = ["print('Hello ') ", "x = 1"]  # Extra whitespaces
     matcher = ApplydirMatcher(similarity_threshold=0.8)
     result, errors = matcher.match(file_lines, change)
     assert result == {"start": 0, "end": 1}
@@ -217,8 +218,8 @@ def test_match_multi_line_single_match():
     logger.debug(f"Multi-line match found: {result}")
 
 
-def test_match_replace_lines_fuzzy_match():
-    """Test fuzzy match within similarity threshold."""
+def test_match_replace_lines_whitespace_difference():
+    """Test whitespace difference match within similarity threshold."""
     change = ApplydirFileChange(
         file_path="src/main.py",
         original_lines=["print('Hello')"],
@@ -250,7 +251,7 @@ def test_match_fuzzy_typos_and_case():
     """Test fuzzy match with typos and case differences."""
     change = ApplydirFileChange(
         file_path="src/main.py",
-        original_lines=["print('Hello')"],
+        original_lines=["print('hello')"],
         changed_lines=["print('Hello World')"],
         action=ActionType.REPLACE_LINES,
     )

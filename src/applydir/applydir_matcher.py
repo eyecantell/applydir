@@ -75,6 +75,28 @@ class ApplydirMatcher:
                 return rule.get("use_fuzzy", default_use_fuzzy)
         return default_use_fuzzy
 
+    # Normalize lines based on whitespace and case handling
+    def normalize_line(self, line: str, whitespace_handling_type: str = "collapse", case_sensitive: bool = True) -> str:
+        '''Normalize line by handling whitespace and case according to parameters'''
+
+        if whitespace_handling_type not in ["strict", "remove", "ignore", "collapse"]:
+            logger.warning(f"Unknown whitespace handling type '{whitespace_handling_type}' (expecting 'strict', 'remove', 'ignore', or 'collapse') - will use collapse")
+        
+        if whitespace_handling_type == "strict":
+            norm = line
+        elif whitespace_handling_type in ["remove", "ignore"]:
+            norm = re.sub(r"\s+", "", line)
+        else: # Default to collapse
+            norm = re.sub(r"\s+", " ", line)
+        
+        # Handle case
+        norm = norm if case_sensitive else norm.lower()
+
+        # Return result
+        logger.debug(f"Whitespace normalized line: '{line}' -> '{norm}' ({whitespace_handling_type})")
+        return str(norm)
+
+
     def match(self, file_content: List[str], change: ApplydirFileChange) -> Tuple[Optional[Dict], List[ApplydirError]]:
         """Matches original_lines in file_content, tries exact first, then fuzzy if configured."""
         errors = []
@@ -118,27 +140,13 @@ class ApplydirMatcher:
         search_limit = max(0, n - m + 1) if self.max_search_lines is None else min(n - m + 1, self.max_search_lines)
         logger.debug(f"Search limit: {search_limit}, file lines: {n}, original lines: {m}")
 
-        # Normalize lines based on whitespace handling
-        whitespace_handling = self.get_whitespace_handling(change.file_path)
-        use_fuzzy = self.get_use_fuzzy(change.file_path)
-        logger.debug(f"Whitespace handling for {change.file_path}: {whitespace_handling}")
-        logger.debug(f"Use fuzzy matching for {change.file_path}: {use_fuzzy}")
+        
+        whitespace_handling_type = self.get_whitespace_handling(change.file_path)
+        
+        logger.debug(f"Whitespace handling for {change.file_path}: {whitespace_handling_type}")
 
-        def normalize(line: str) -> str:
-            if whitespace_handling == "strict":
-                norm = line
-            elif whitespace_handling == "collapse":
-                norm = re.sub(r"\s+", " ", line.strip())
-            elif whitespace_handling in ["remove", "ignore"]:
-                norm = re.sub(r"\s+", "", line.strip())
-            else:
-                norm = re.sub(r"\s+", " ", line.strip())  # Default to collapse
-            norm = norm if self.case_sensitive else norm.lower()
-            logger.debug(f"Normalized line: '{line}' -> '{norm}' (chars: {[ord(c) for c in norm]})")
-            return norm
-
-        normalized_original = [normalize(line) for line in change.original_lines]
-        normalized_content = [normalize(line) for line in file_content]
+        normalized_original = [self.normalize_line(line, whitespace_handling_type, self.case_sensitive) for line in change.original_lines]
+        normalized_content = [self.normalize_line(line, whitespace_handling_type, self.case_sensitive) for line in file_content]
         logger.debug(f"Normalized original_lines: {normalized_original}")
         logger.debug(f"Normalized file_content: {normalized_content}")
 
@@ -152,6 +160,8 @@ class ApplydirMatcher:
                 logger.debug(f"Exact match found at index {i} for {change.file_path}")
 
         # Fuzzy matching if no exact match and use_fuzzy is True
+        use_fuzzy = self.get_use_fuzzy(change.file_path)
+        logger.debug(f"Use fuzzy matching for {change.file_path}: {use_fuzzy}")
         if not matches and use_fuzzy:
             similarity_threshold = self.get_similarity_threshold(change.file_path)
             similarity_metric = self.get_similarity_metric(change.file_path)
