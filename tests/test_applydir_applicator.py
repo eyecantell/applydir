@@ -108,6 +108,7 @@ def test_replace_lines_fuzzy(tmp_path, applicator):
     )
     applicator.changes = changes
     errors = applicator.apply_changes()
+    print("errors are: \n" + "\n".join([str(err) for err in errors]))
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
     assert errors[0].severity == ErrorSeverity.INFO

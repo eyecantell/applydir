@@ -40,11 +40,11 @@ def test_normalize_line_ignore_whitespace():
 
 
 def test_normalize_line_collapse_whitespace():
-    """Test normalize_line with collapse whitespace handling."""
+    """Test normalize_line with collapse whitespace handling, including strip."""
     matcher = ApplydirMatcher(case_sensitive=True)
     line = "  print(  'Hello'  )  "
     result = matcher.normalize_line(line, whitespace_handling_type="collapse")
-    assert result == " print( 'Hello' ) "
+    assert result == "print( 'Hello' )"
     logger.debug(f"Collapse whitespace normalization: '{line}' -> '{result}'")
 
 
@@ -53,7 +53,7 @@ def test_normalize_line_unknown_whitespace_handling():
     matcher = ApplydirMatcher(case_sensitive=True)
     line = "  print(  'Hello'  )  "
     result = matcher.normalize_line(line, whitespace_handling_type="invalid")
-    assert result == " print( 'Hello' ) "
+    assert result == "print( 'Hello' )"
     logger.debug(f"Unknown whitespace normalization (fallback to collapse): '{line}' -> '{result}'")
 
 
@@ -62,7 +62,7 @@ def test_normalize_line_case_sensitive():
     matcher = ApplydirMatcher(case_sensitive=True)
     line = "  Print('Hello')  "
     result = matcher.normalize_line(line, whitespace_handling_type="collapse", case_sensitive=True)
-    assert result == " Print('Hello') "
+    assert result == "Print('Hello')"
     logger.debug(f"Case-sensitive normalization: '{line}' -> '{result}'")
 
 
@@ -71,7 +71,7 @@ def test_normalize_line_case_insensitive():
     matcher = ApplydirMatcher(case_sensitive=False)
     line = "  Print('Hello')  "
     result = matcher.normalize_line(line, whitespace_handling_type="collapse", case_sensitive=False)
-    assert result == " print('hello') "
+    assert result == "print('hello')"
     logger.debug(f"Case-insensitive normalization: '{line}' -> '{result}'")
 
 
@@ -89,8 +89,35 @@ def test_normalize_line_only_whitespace():
     matcher = ApplydirMatcher(case_sensitive=True)
     line = "   \t  "
     result = matcher.normalize_line(line, whitespace_handling_type="collapse")
-    assert result == " "
+    assert result == ""
     logger.debug(f"Only whitespace normalization: '{line}' -> '{result}'")
+
+
+def test_normalize_line_collapse_with_strip():
+    """Test normalize_line with collapse including leading/trailing whitespace strip."""
+    matcher = ApplydirMatcher(case_sensitive=True)
+    line = "\t  print(  'Hello'  )  "
+    result = matcher.normalize_line(line, whitespace_handling_type="collapse")
+    assert result == "print( 'Hello' )"
+    logger.debug(f"Collapse with strip normalization: '{line}' -> '{result}'")
+
+
+def test_normalize_line_remove_with_strip():
+    """Test normalize_line with remove including leading/trailing whitespace strip."""
+    matcher = ApplydirMatcher(case_sensitive=True)
+    line = "  print(  'Hello'  )  "
+    result = matcher.normalize_line(line, whitespace_handling_type="remove")
+    assert result == "print('Hello')"
+    logger.debug(f"Remove with strip normalization: '{line}' -> '{result}'")
+
+
+def test_normalize_line_strict_no_strip():
+    """Test normalize_line with strict mode preserves leading/trailing whitespace."""
+    matcher = ApplydirMatcher(case_sensitive=True)
+    line = "  print('Hello')  "
+    result = matcher.normalize_line(line, whitespace_handling_type="strict")
+    assert result == "  print('Hello')  "
+    logger.debug(f"Strict no strip normalization: '{line}' -> '{result}'")
 
 
 def test_match_replace_lines_single_match():
@@ -110,19 +137,19 @@ def test_match_replace_lines_single_match():
 
 
 def test_match_replace_lines_whitespace_match():
-    """Test whitespace match within similarity threshold."""
+    """Test internal whitespace match within similarity threshold in collapse mode."""
     change = ApplydirFileChange(
         file_path="src/main.py",
-        original_lines=["    print('Hello')"],  # four spaces leading
+        original_lines=["print( 'Hello')"],  # Internal tab
         changed_lines=["print('Hello World')"],
         action=ActionType.REPLACE_LINES,
     )
-    file_lines = [" print('Hello')", "x = 1"]  # tab leading
+    file_lines = ["print(    'Hello')", "x = 1"]  # four internal spaces
     matcher = ApplydirMatcher(similarity_threshold=0.8)
     result, errors = matcher.match(file_lines, change)
     assert result == {"start": 0, "end": 1}
     assert len(errors) == 0
-    logger.debug(f"Fuzzy match found: {result}")
+    logger.debug(f"Internal whitespace match found: {result}")
 
 
 def test_match_replace_lines_no_match():
