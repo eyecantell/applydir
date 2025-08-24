@@ -87,13 +87,13 @@ class ApplydirMatcher:
         elif whitespace_handling_type in ["remove", "ignore"]:
             norm = re.sub(r"\s+", "", line)
         else: # Default to collapse
-            norm = re.sub(r"\s+", " ", line)
+            norm = re.sub(r"\s+", " ", line.strip())  # Note that collapse also strips leading/trailing whitespace
         
         # Handle case
         norm = norm if case_sensitive else norm.lower()
 
         # Return result
-        logger.debug(f"Whitespace normalized line: '{line}' -> '{norm}' ({whitespace_handling_type})")
+        logger.debug(f"Normalized line: '{line}' -> '{norm}' ({whitespace_handling_type})")
         return str(norm)
 
 
