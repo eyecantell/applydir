@@ -311,7 +311,7 @@ def test_match_similarity_threshold():
 
 
 def test_match_multi_line_single_match():
-    """Test single fuzzy match for multi-line original_lines."""
+    """Test single match for multi-line original_lines."""
     change = ApplydirFileChange(
         file_path="src/main.py",
         original_lines=["print('Hello')", "x = 1", "y = 2"],

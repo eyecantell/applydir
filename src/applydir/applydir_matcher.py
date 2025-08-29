@@ -2,7 +2,7 @@ from difflib import SequenceMatcher
 from typing import List, Dict, Optional, Tuple
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from .applydir_file_change import ApplydirFileChange, ActionType
-from .applydir_distance import levenshtein_similarity
+from .applydir_distance import levenshtein_similarity, sequence_matcher_similarity
 import logging
 import re
 from pathlib import Path
@@ -53,15 +53,15 @@ class ApplydirMatcher:
 
     def get_similarity_metric(self, file_path: str) -> str:
         """Determine similarity metric based on file extension."""
-        default_metric = self.config.get("matching", {}).get("similarity_metric", {}).get("default", "sequence_matcher")
+        sim_metric = self.config.get("matching", {}).get("similarity_metric", {}).get("default", "sequence_matcher")
         if not file_path:
-            return default_metric
+            return sim_metric
         file_extension = Path(file_path).suffix.lower()
         rules = self.config.get("matching", {}).get("similarity_metric", {}).get("rules", [])
         for rule in rules:
             if file_extension in rule.get("extensions", []):
-                return rule.get("metric", default_metric)
-        return default_metric
+                return rule.get("metric", sim_metric)
+        return sim_metric.lower()
 
     def get_use_fuzzy(self, file_path: str) -> bool:
         """Determine if fuzzy matching should be used based on file extension."""
@@ -172,13 +172,17 @@ class ApplydirMatcher:
                 window = normalized_content[i : i + m]
                 logger.debug(f"Checking fuzzy window at index {i}: {window} (size: {len(window)})")
                 if len(window) == m:
-                    if similarity_metric == "levenshtein":
-                        ratio = levenshtein_similarity(window, normalized_original)
-                        matching_blocks = []
+                    if similarity_metric == "sequence_matcher":
+                        ratio = sequence_matcher_similarity(window, normalized_original)
+
                     else:
-                        matcher = SequenceMatcher(None, window, normalized_original, autojunk=False)
-                        ratio = matcher.ratio()
-                        matching_blocks = matcher.get_matching_blocks()
+                        if similarity_metric is not None and similarity_metric != "levenshtein":
+                            logger.warning(f"Unrecognized similarity_metric {similarity_metric} - using levenshtein")
+                        ratio = levenshtein_similarity(window, normalized_original)
+                    
+                    
+                    
+                        
                     logger.debug(
                         f"Fuzzy match attempt at index {i} for {change.file_path}, metric: {similarity_metric}, ratio: {ratio:.4f}, window: {window}, original: {normalized_original}, matching_blocks: {matching_blocks}"
                     )
