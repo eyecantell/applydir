@@ -104,8 +104,9 @@ def test_replace_lines_fuzzy(tmp_path, applicator):
                 "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": True}]},
             },
             "allow_file_deletion": False,
-        }
+        },
     )
+
     applicator.changes = changes
     errors = applicator.apply_changes()
     print("errors are: \n" + "\n".join([str(err) for err in errors]))
@@ -523,3 +524,40 @@ def test_non_dict_change_dict(tmp_path, applicator):
     assert "Input should be a valid dictionary" in str(exc_info.value)
     
     assert file_path.read_text() == "print('Hello')\n"  # File unchanged
+
+def test_replace_lines_fuzzy_sequence_matcher(tmp_path, applicator):
+    """Test fuzzy matching with SequenceMatcher explicitly (expects failure due to high threshold)."""
+    file_path = tmp_path / "main.py"
+    file_path.write_text("Print('Helo') \nx = 1\n")
+    changes = ApplydirChanges(
+        file_entries=[
+            FileEntry(
+                file="main.py",
+                action=ActionType.REPLACE_LINES,
+                changes=[{"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}],
+            )
+        ]
+    )
+    applicator.config.update(
+        {
+            "matching": {
+                "whitespace": {"default": "collapse", "rules": [{"extensions": [".py"], "handling": "remove"}]},
+                "similarity": {"default": 0.95, "rules": [{"extensions": [".py"], "threshold": 0.95}]}, 
+                "similarity_metric": {
+                    "default": "levenshtein",
+                    "rules": [{"extensions": [".py"], "metric": "sequence_matcher"}],
+                },
+                "use_fuzzy": {"default": True, "rules": [{"extensions": [".py"], "use_fuzzy": True}]},
+            },
+            "allow_file_deletion": False,
+        }
+    )
+    applicator.changes = changes
+    errors = applicator.apply_changes()
+    print("errors are: \n" + "\n".join([str(err) for err in errors]))
+    assert len(errors) == 1
+    assert errors[0].error_type == ErrorType.NO_MATCH  # SequenceMatcher fails due to ratio ~0.889 < 0.95
+    assert errors[0].severity == ErrorSeverity.ERROR
+    assert errors[0].message == "No matching lines found"
+    assert file_path.read_text() == "Print('Helo') \nx = 1\n"  # File unchanged
+    logger.debug(f"SequenceMatcher fuzzy match failed as expected: {file_path.read_text()}")

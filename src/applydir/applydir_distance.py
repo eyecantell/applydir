@@ -1,6 +1,8 @@
 from typing import List
 from difflib import SequenceMatcher
+import logging
 
+logger = logging.getLogger(__name__)
 
 # If this needs to get more complex, or we need it to be faster, consider using rapidfuzz (pdm install rapidfuzz)
 def levenshtein_distance(s1: str, s2: str) -> int:
@@ -39,4 +41,7 @@ def sequence_matcher_similarity(a: List[str], b: List[str]) -> float:
     a_str = "\n".join(a)
     b_str = "\n".join(b)
     sm = SequenceMatcher(None, a_str, b_str)
+    blocks = list(sm.get_matching_blocks())
+    
+    logger.debug(f"Matching blocks are {blocks}")
     return sm.ratio()

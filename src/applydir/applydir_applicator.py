@@ -31,7 +31,7 @@ class ApplydirApplicator:
             "matching": {
                 "whitespace": {"default": "collapse"},
                 "similarity": {"default": 0.95},
-                "similarity_metric": {"default": "sequence_matcher"},
+                "similarity_metric": {"default": "levenshtein"},  # Updated default to levenshtein
                 "use_fuzzy": {"default": True},
             },
         }

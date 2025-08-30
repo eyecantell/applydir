@@ -25,7 +25,7 @@ class ApplydirMatcher:
         self.case_sensitive = case_sensitive
         self.config = config or {}
 
-    def get_whitespace_handling(self, file_path: str) -> str:
+    def get_whitespace_handling(self, file_path: str) -> str:   
         """Determine whitespace handling based on file extension."""
         default_handling = self.config.get("matching", {}).get("whitespace", {}).get("default", "collapse")
         if not file_path:
@@ -42,18 +42,27 @@ class ApplydirMatcher:
         default_threshold = (
             self.config.get("matching", {}).get("similarity", {}).get("default", self.default_similarity_threshold)
         )
+        # Validate default_threshold is a number
+        if not isinstance(default_threshold, (int, float)):
+            logger.warning(f"Invalid default similarity threshold '{default_threshold}', using {self.default_similarity_threshold}")
+            default_threshold = self.default_similarity_threshold
+
         if not file_path:
             return default_threshold
         file_extension = Path(file_path).suffix.lower()
         rules = self.config.get("matching", {}).get("similarity", {}).get("rules", [])
         for rule in rules:
             if file_extension in rule.get("extensions", []):
-                return rule.get("threshold", default_threshold)
+                threshold = rule.get("threshold", default_threshold)
+                if not isinstance(threshold, (int, float)):
+                    logger.warning(f"Invalid similarity threshold '{threshold}' for extension {file_extension}, using {default_threshold}")
+                    return default_threshold
+                return threshold
         return default_threshold
 
     def get_similarity_metric(self, file_path: str) -> str:
         """Determine similarity metric based on file extension."""
-        sim_metric = self.config.get("matching", {}).get("similarity_metric", {}).get("default", "sequence_matcher")
+        sim_metric = self.config.get("matching", {}).get("similarity_metric", {}).get("default", "levenshtein")
         if not file_path:
             return sim_metric
         file_extension = Path(file_path).suffix.lower()
@@ -166,7 +175,7 @@ class ApplydirMatcher:
             similarity_threshold = self.get_similarity_threshold(change.file_path)
             similarity_metric = self.get_similarity_metric(change.file_path)
             logger.debug(
-                f"Fuzzy matching for {change.file_path}, metric: {similarity_metric}, threshold: {similarity_threshold}"
+                f"Trying fuzzy match for {change.file_path}, metric: {similarity_metric}, threshold: {similarity_threshold}"
             )
             for i in range(search_limit):
                 window = normalized_content[i : i + m]
@@ -184,7 +193,7 @@ class ApplydirMatcher:
                     
                         
                     logger.debug(
-                        f"Fuzzy match attempt at index {i} for {change.file_path}, metric: {similarity_metric}, ratio: {ratio:.4f}, window: {window}, original: {normalized_original}, matching_blocks: {matching_blocks}"
+                        f"Fuzzy match attempt at index {i} for {change.file_path}, metric: {similarity_metric}, ratio: {ratio:.4f}, window: {window}, original: {normalized_original}"
                     )
                     if ratio >= similarity_threshold:
                         matches.append({"start": i, "end": i + m})
