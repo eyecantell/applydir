@@ -9,6 +9,14 @@ from pathlib import Path
 
 logger = logging.getLogger("applydir")
 
+def _to_lowercase_keys(obj: Dict) -> Dict:
+    """Recursively convert all dictionary keys to lowercase."""
+    if not isinstance(obj, dict):
+        return obj
+    return {
+        k.lower() if isinstance(k, str) else k: _to_lowercase_keys(v)
+        for k, v in obj.items()
+    }
 
 class ApplydirMatcher:
     """Matches original_lines in file content using exact and optional fuzzy matching."""
@@ -27,11 +35,12 @@ class ApplydirMatcher:
 
     def get_whitespace_handling(self, file_path: str) -> str:   
         """Determine whitespace handling based on file extension."""
-        default_handling = self.config.get("matching", {}).get("whitespace", {}).get("default", "collapse")
+        matching = self.config.get("matching", self.config.get("MATCHING", {}))
+        default_handling = matching.get("whitespace", {}).get("default", "collapse")
         if not file_path:
             return default_handling
         file_extension = Path(file_path).suffix.lower()
-        rules = self.config.get("matching", {}).get("whitespace", {}).get("rules", [])
+        rules = matching.get("whitespace", {}).get("rules", [])
         for rule in rules:
             if file_extension in rule.get("extensions", []):
                 return rule.get("handling", default_handling)
@@ -39,8 +48,10 @@ class ApplydirMatcher:
 
     def get_similarity_threshold(self, file_path: str) -> float:
         """Determine similarity threshold based on file extension."""
+        
+        matching = self.config.get("matching", self.config.get("MATCHING", {}))
         default_threshold = (
-            self.config.get("matching", {}).get("similarity", {}).get("default", self.default_similarity_threshold)
+            matching.get("similarity", {}).get("default", self.default_similarity_threshold)
         )
         # Validate default_threshold is a number
         if not isinstance(default_threshold, (int, float)):
@@ -50,23 +61,28 @@ class ApplydirMatcher:
         if not file_path:
             return default_threshold
         file_extension = Path(file_path).suffix.lower()
-        rules = self.config.get("matching", {}).get("similarity", {}).get("rules", [])
+        rules = matching.get("similarity", {}).get("rules", [])
         for rule in rules:
             if file_extension in rule.get("extensions", []):
                 threshold = rule.get("threshold", default_threshold)
                 if not isinstance(threshold, (int, float)):
                     logger.warning(f"Invalid similarity threshold '{threshold}' for extension {file_extension}, using {default_threshold}")
                     return default_threshold
+                logger.debug(f"Got {threshold=} for {file_extension=}")
                 return threshold
+        
+        logger.debug(f"No rule found for {file_extension=}, using {default_threshold=}")
         return default_threshold
 
     def get_similarity_metric(self, file_path: str) -> str:
         """Determine similarity metric based on file extension."""
-        sim_metric = self.config.get("matching", {}).get("similarity_metric", {}).get("default", "levenshtein")
+        
+        matching = self.config.get("matching", self.config.get("MATCHING", {}))
+        sim_metric = matching.get("similarity_metric", {}).get("default", "levenshtein")
         if not file_path:
             return sim_metric
         file_extension = Path(file_path).suffix.lower()
-        rules = self.config.get("matching", {}).get("similarity_metric", {}).get("rules", [])
+        rules = matching.get("similarity_metric", {}).get("rules", [])
         for rule in rules:
             if file_extension in rule.get("extensions", []):
                 return rule.get("metric", sim_metric)
@@ -74,11 +90,12 @@ class ApplydirMatcher:
 
     def get_use_fuzzy(self, file_path: str) -> bool:
         """Determine if fuzzy matching should be used based on file extension."""
-        default_use_fuzzy = self.config.get("matching", {}).get("use_fuzzy", {}).get("default", True)
+        matching = self.config.get("matching", self.config.get("MATCHING", {}))
+        default_use_fuzzy = matching.get("use_fuzzy", {}).get("default", True)
         if not file_path:
             return default_use_fuzzy
         file_extension = Path(file_path).suffix.lower()
-        rules = self.config.get("matching", {}).get("use_fuzzy", {}).get("rules", [])
+        rules = matching.get("use_fuzzy", {}).get("rules", [])
         for rule in rules:
             if file_extension in rule.get("extensions", []):
                 return rule.get("use_fuzzy", default_use_fuzzy)
@@ -102,7 +119,7 @@ class ApplydirMatcher:
         norm = norm if case_sensitive else norm.lower()
 
         # Return result
-        logger.debug(f"Normalized line: '{line}' -> '{norm}' ({whitespace_handling_type})")
+        logger.debug(f"Normalized line: '{line}' -> '{norm}' ({whitespace_handling_type=}, case_sensitive={self.case_sensitive})")
         return str(norm)
 
 

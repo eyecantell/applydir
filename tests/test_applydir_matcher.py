@@ -355,6 +355,7 @@ def test_match_replace_lines_whitespace_difference():
     logger.debug(f"Fuzzy match with whitespace: {result}")
 
 
+
 def test_match_fuzzy_typos_and_case():
     """Test fuzzy match with typos and case differences."""
     change = ApplydirFileChange(

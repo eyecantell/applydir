@@ -97,6 +97,7 @@ def test_replace_lines_fuzzy(tmp_path, applicator):
             "matching": {
                 "whitespace": {"default": "collapse", "rules": [{"extensions": [".py"], "handling": "remove"}]},
                 "similarity": {"default": 0.95, "rules": [{"extensions": [".py"], "threshold": 0.2}]},
+                
                 "similarity_metric": {
                     "default": "sequence_matcher",
                     "rules": [{"extensions": [".py"], "metric": "levenshtein"}],
@@ -106,8 +107,9 @@ def test_replace_lines_fuzzy(tmp_path, applicator):
             "allow_file_deletion": False,
         },
     )
-
+    applicator.matcher.config = applicator.config.as_dict()
     applicator.changes = changes
+    
     errors = applicator.apply_changes()
     print("errors are: \n" + "\n".join([str(err) for err in errors]))
     assert len(errors) == 1
