@@ -6,7 +6,7 @@ from prepdir import configure_logging
 from .applydir_changes import ApplydirChanges
 from .applydir_matcher import ApplydirMatcher
 from .applydir_applicator import ApplydirApplicator
-from .applydir_error import ApplydirError
+from .applydir_error import ApplydirError, ErrorSeverity
 
 
 def main():
@@ -49,14 +49,14 @@ def main():
 
     # Initialize components
     try:
-        changes = ApplydirChanges(files=changes_json)
+        changes = ApplydirChanges(file_entries=changes_json["file_entries"])
         matcher = ApplydirMatcher(similarity_threshold=0.95)
         applicator = ApplydirApplicator(
             base_dir=args.base_dir, changes=changes, matcher=matcher, logger=logger, config_override=config_override
         )
 
         # Validate and apply changes
-        errors = changes.validate_changes(base_dir=args.base_dir, config_override=config_override)
+        errors = changes.validate_changes(base_dir=args.base_dir, config=config_override)
         if errors:
             for error in errors:
                 logger.log(
@@ -66,12 +66,17 @@ def main():
             return 1
 
         errors = applicator.apply_changes()
-        if errors:
-            for error in errors:
-                logger.log(
-                    logging.WARNING if error.severity == "warning" else logging.ERROR,
-                    f"{error.message}: {error.details}",
-                )
+        has_errors = False
+        for error in errors:
+            log_level = (
+                logging.INFO if error.severity == ErrorSeverity.INFO
+                else logging.WARNING if error.severity == ErrorSeverity.WARNING
+                else logging.ERROR
+            )
+            logger.log(log_level, f"{error.message}: {error.details}")
+            if error.severity in [ErrorSeverity.ERROR, ErrorSeverity.WARNING]:
+                has_errors = True
+        if has_errors:
             return 1
 
         logger.info("Changes applied successfully")
