@@ -24,7 +24,9 @@ def test_levenshtein_similarity():
 
 def test_sequence_matcher_similarity():
     assert sequence_matcher_similarity(["hello"], ["hello"]) == 1.0
-    assert sequence_matcher_similarity(["kitten"], ["sitting"]) == pytest.approx(0.615, abs=0.001)  # SequenceMatcher ratio: 2*4/13
+    assert sequence_matcher_similarity(["kitten"], ["sitting"]) == pytest.approx(
+        0.615, abs=0.001
+    )  # SequenceMatcher ratio: 2*4/13
     assert sequence_matcher_similarity(["line1", "line2"], ["line1", "line3"]) == pytest.approx(
         0.909, abs=0.001
     )  # SequenceMatcher ratio: 2*10/22

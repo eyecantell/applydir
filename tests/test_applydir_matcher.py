@@ -9,7 +9,7 @@ from applydir.applydir_error import ApplydirError, ErrorType, ErrorSeverity
 # Set up logging for tests
 logger = logging.getLogger("applydir_test")
 configure_logging(logger, level=logging.DEBUG)
-logging.getLogger('applydir').setLevel(logging.DEBUG)
+logging.getLogger("applydir").setLevel(logging.DEBUG)
 
 
 def test_normalize_line_strict_whitespace():
@@ -355,7 +355,6 @@ def test_match_replace_lines_whitespace_difference():
     logger.debug(f"Fuzzy match with whitespace: {result}")
 
 
-
 def test_match_fuzzy_typos_and_case():
     """Test fuzzy match with typos and case differences."""
     change = ApplydirFileChange(
@@ -429,14 +428,7 @@ def test_get_similarity_threshold_file_specific():
     """Test get_similarity_threshold with file-specific rule."""
     matcher = ApplydirMatcher(
         similarity_threshold=0.95,
-        config={
-            "matching": {
-                "similarity": {
-                    "default": 0.9,
-                    "rules": [{"extensions": [".py"], "threshold": 0.8}]
-                }
-            }
-        }
+        config={"matching": {"similarity": {"default": 0.9, "rules": [{"extensions": [".py"], "threshold": 0.8}]}}},
     )
     result = matcher.get_similarity_threshold("src/main.py")
     assert result == 0.8
@@ -447,14 +439,7 @@ def test_get_similarity_threshold_no_matching_rule():
     """Test get_similarity_threshold with no matching rule for file extension."""
     matcher = ApplydirMatcher(
         similarity_threshold=0.95,
-        config={
-            "matching": {
-                "similarity": {
-                    "default": 0.9,
-                    "rules": [{"extensions": [".txt"], "threshold": 0.7}]
-                }
-            }
-        }
+        config={"matching": {"similarity": {"default": 0.9, "rules": [{"extensions": [".txt"], "threshold": 0.7}]}}},
     )
     result = matcher.get_similarity_threshold("src/main.py")
     assert result == 0.9
@@ -465,14 +450,7 @@ def test_get_similarity_threshold_empty_file_path():
     """Test get_similarity_threshold with empty file path."""
     matcher = ApplydirMatcher(
         similarity_threshold=0.95,
-        config={
-            "matching": {
-                "similarity": {
-                    "default": 0.9,
-                    "rules": [{"extensions": [".py"], "threshold": 0.8}]
-                }
-            }
-        }
+        config={"matching": {"similarity": {"default": 0.9, "rules": [{"extensions": [".py"], "threshold": 0.8}]}}},
     )
     result = matcher.get_similarity_threshold("")
     assert result == 0.9
@@ -481,10 +459,7 @@ def test_get_similarity_threshold_empty_file_path():
 
 def test_get_similarity_threshold_missing_similarity_config():
     """Test get_similarity_threshold with missing similarity config."""
-    matcher = ApplydirMatcher(
-        similarity_threshold=0.95,
-        config={"matching": {}}
-    )
+    matcher = ApplydirMatcher(similarity_threshold=0.95, config={"matching": {}})
     result = matcher.get_similarity_threshold("src/main.py")
     assert result == 0.95
     logger.debug(f"Missing similarity config threshold: {result}")
@@ -498,10 +473,10 @@ def test_get_similarity_threshold_invalid_threshold():
             "matching": {
                 "similarity": {
                     "default": "invalid",  # Invalid type
-                    "rules": [{"extensions": [".py"], "threshold": "invalid"}]  # Invalid type
+                    "rules": [{"extensions": [".py"], "threshold": "invalid"}],  # Invalid type
                 }
             }
-        }
+        },
     )
     result = matcher.get_similarity_threshold("src/main.py")
     assert result == 0.95  # Falls back to default_similarity_threshold
@@ -518,11 +493,11 @@ def test_get_similarity_threshold_multiple_rules():
                     "default": 0.9,
                     "rules": [
                         {"extensions": [".py"], "threshold": 0.8},
-                        {"extensions": [".py"], "threshold": 0.7}  # Should be ignored
-                    ]
+                        {"extensions": [".py"], "threshold": 0.7},  # Should be ignored
+                    ],
                 }
             }
-        }
+        },
     )
     result = matcher.get_similarity_threshold("src/main.py")
     assert result == 0.8

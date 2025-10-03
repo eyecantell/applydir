@@ -10,7 +10,6 @@ from .applydir_error import ApplydirError, ErrorSeverity
 
 
 def main():
-    """CLI entry point for applydir utility."""
     parser = argparse.ArgumentParser(description="Applydir: Apply LLM-generated changes to a codebase.")
     parser.add_argument("input_file", type=str, help="Path to JSON file containing changes")
     parser.add_argument(
@@ -28,18 +27,15 @@ def main():
     )
     args = parser.parse_args()
 
-    # Set up logging
     logger = logging.getLogger("applydir")
     configure_logging(logger, level=args.log_level)
 
-    # Build config override
     config_override = {
         "allow_file_deletion": not args.no_allow_file_deletion,
     }
     if args.non_ascii_action:
         config_override["validation"] = {"non_ascii": {"default": args.non_ascii_action}}
 
-    # Read and parse input JSON
     try:
         with open(args.input_file, "r") as f:
             changes_json = json.load(f)
@@ -47,15 +43,16 @@ def main():
         logger.error(f"Failed to read input file: {str(e)}")
         return 1
 
-    # Initialize components
     try:
+        if "file_entries" not in changes_json:
+            logger.error("JSON must contain a non-empty array of file entries")
+            return 1
         changes = ApplydirChanges(file_entries=changes_json["file_entries"])
         matcher = ApplydirMatcher(similarity_threshold=0.95)
         applicator = ApplydirApplicator(
             base_dir=args.base_dir, changes=changes, matcher=matcher, logger=logger, config_override=config_override
         )
 
-        # Validate and apply changes
         errors = changes.validate_changes(base_dir=args.base_dir, config=config_override)
         if errors:
             for error in errors:
@@ -69,8 +66,10 @@ def main():
         has_errors = False
         for error in errors:
             log_level = (
-                logging.INFO if error.severity == ErrorSeverity.INFO
-                else logging.WARNING if error.severity == ErrorSeverity.WARNING
+                logging.INFO
+                if error.severity == ErrorSeverity.INFO
+                else logging.WARNING
+                if error.severity == ErrorSeverity.WARNING
                 else logging.ERROR
             )
             logger.log(log_level, f"{error.message}: {error.details}")

@@ -9,6 +9,7 @@ from pydantic_core import PydanticCustomError
 
 logger = logging.getLogger("applydir")
 
+
 class FileEntry(BaseModel):
     """Represents a single file entry with a file path, action, and list of changes."""
 
@@ -35,6 +36,7 @@ class FileEntry(BaseModel):
             return ActionType(v)
         except ValueError:
             raise ValueError(f"Invalid action: {v}. Must be 'delete_file', 'replace_lines', or 'create_file'.")
+
 
 class ApplydirChanges(BaseModel):
     """Parses and validates JSON input for applydir changes as a container class."""
@@ -118,9 +120,7 @@ class ApplydirChanges(BaseModel):
             for change in change_dicts:
                 try:
                     change_obj = ApplydirFileChange.from_file_entry(
-                        file_path=file_path,
-                        action=file_entry.action,
-                        change_dict=change
+                        file_path=file_path, action=file_entry.action, change_dict=change
                     )
                     errors.extend(change_obj.validate_change(config=config))
                 except Exception as e:

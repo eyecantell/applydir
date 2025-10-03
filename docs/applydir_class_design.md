@@ -1,48 +1,90 @@
-# applydir Class Design Document (August 19, 2025)
+# applydir Class Design Document (October 2, 2025)
 
 ## Overview
-The `applydir` project automates code changes with >95% reliability, integrating with `prepdir` (file contents) and `vibedir` (LLM prompts, Git, linting). Changes are specified in a JSON array of file objects, using `"replace_lines"` for line-level changes, `"create_file"` for new files, and `"delete_file"` for file deletions. Paths are resolvable within the project directory, matching `prepdir`’s output.
+The `applydir` project automates applying LLM-generated code changes to a codebase with high reliability. It processes JSON-specified changes, supporting `replace_lines` (line-level modifications), `create_file` (new files), and `delete_file` (file deletions). Changes are applied directly to the codebase, with tracking/reversion handled by Git or other tools (planned via `vibedir`). It integrates with `prepdir` for logging and configuration. File paths are resolved relative to a base directory, matching `prepdir`’s output.
 
 ## Core Design Principles
-- **Unified Replace Approach**: `"replace_lines"` replaces `original_lines` with `changed_lines`. `"create_file"` uses empty `original_lines`.
-- **File Deletion**: `"delete_file"` omits `changes`, controlled by `allow_file_deletion`.
-- **Reliability (>95%)**: Hybrid matching (exact first, optional fuzzy fallback) with configurable normalization (whitespace handling, case sensitivity, threshold, metric) per file type. Multiple matches trigger `vibedir` to use `min_context.calculate_min_context` for LLM follow-up.
-- **Minimal JSON**: Only `file`, optional `action`, and `changes`.
-- **Resolvable Paths**: Relative or absolute paths resolved in project directory.
-- **Validation Simplicity**: Validates JSON, actions, paths, syntax, and matching.
-- **Git and Linting**: Handled by `vibedir`.
-- **Configuration**: Uses `prepdir`’s `load_config` for `config.yaml`, with CLI/`config_override`.
+- **Supported Actions**: `replace_lines` for line replacements, `create_file` for new files, `delete_file` for deletions (controlled by `allow_file_deletion`).
+- **Direct Application**: Changes are applied directly to files for simplicity; Git (via planned `vibedir`) handles tracking/reversion.
+- **Reliability**: Hybrid matching (exact first, optional fuzzy fallback with Levenshtein or sequence matcher) ensures accurate line replacements.
+- **JSON Input**: Minimal structure with `file_entries` containing `file`, `action`, and `changes`.
+- **Resolvable Paths**: Relative or absolute paths resolved within `--base-dir`.
+- **Validation**: Checks JSON structure, actions, file paths, and non-ASCII characters.
+- **Configuration**: Uses `prepdir`’s `load_config` for `config.yaml`, with CLI or programmatic overrides.
+- **Modularity**: Separates parsing (`ApplydirChanges`), validation (`ApplydirFileChange`), matching (`ApplydirMatcher`), and application (`ApplydirApplicator`).
 
 ## JSON Format
 ```json
-[
-  {
-    "file": "<relative_or_absolute_file_path>",
-    "action": "<delete_file|replace_lines|create_file>", // Optional; "replace_lines" default
-    "changes": [
-      {
-        "original_lines": [<non-empty for replace_lines, empty for create_file>],
-        "changed_lines": [<new lines or full content>]
-      }
-    ]
-  }
-]
+{
+  "file_entries": [
+    {
+      "file": "<relative_or_absolute_file_path>",
+      "action": "<replace_lines|create_file|delete_file>",
+      "changes": [
+        {
+          "original_lines": ["<lines to match in existing file (empty for create_file)>"],
+          "changed_lines": ["<new lines or full content for create_file>"]
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Fields
-- **File Object**:
+- **File Entry**:
   - `file`: Path (e.g., `src/main.py`).
-  - `action`: `"delete_file"`, `"replace_lines"`, `"create_file"`, or absent (`"replace_lines"`).
-  - `changes`: Optional for `"delete_file"`, required for `"replace_lines"` and `"create_file"`.
-- **Change Object**:
-  - `original_lines`: Non-empty for `"replace_lines"`, empty for `"create_file"`.
-  - `changed_lines`: Non-empty for replacements or new files.
+  - `action`: Required; one of `replace_lines`, `create_file`, `delete_file`.
+  - `changes`: Required for `replace_lines` and `create_file`, optional for `delete_file`.
+- **Change Object** (within `changes`):
+  - `original_lines`: Non-empty for `replace_lines`, empty for `create_file`, ignored for `delete_file`.
+  - `changed_lines`: Non-empty for `replace_lines` or `create_file`, ignored for `delete_file`.
 
 ### Example Cases
-See JSON Format in `applydir_design_overview.md`.
+- **Replace Lines**:
+  ```json
+  {
+    "file_entries": [
+      {
+        "file": "src/main.py",
+        "action": "replace_lines",
+        "changes": [
+          {"original_lines": ["print('Hello')"], "changed_lines": ["print('Hello World')"]}
+        ]
+      }
+    ]
+  }
+  ```
+- **Create File**:
+  ```json
+  {
+    "file_entries": [
+      {
+        "file": "src/new.py",
+        "action": "create_file",
+        "changes": [
+          {"original_lines": [], "changed_lines": ["def new_func():", "    pass"]}
+        ]
+      }
+    ]
+  }
+  ```
+- **Delete File**:
+  ```json
+  {
+    "file_entries": [
+      {
+        "file": "src/old.py",
+        "action": "delete_file",
+        "changes": []
+      }
+    ]
+  }
+  ```
 
 ## Configuration
-Uses `config.yaml`:
+Uses `.applydir/config.yaml` or bundled `src/applydir/config.yaml`, loaded via `prepdir`’s `load_config`. CLI options (`--no-allow-file-deletion`, `--non-ascii-action`) or programmatic `config_override` override settings.
+
 ```yaml
 validation:
   non_ascii:
@@ -58,156 +100,151 @@ validation:
 matching:
   whitespace:
     default: collapse
-    rules:
-      - extensions: [".py", ".js"]
-        handling: remove
-      - extensions: [".md", ".txt"]
-        handling: ignore
-      - extensions: [".json", ".yaml"]
-        handling: strict
   similarity:
     default: 0.95
-    rules:
-      - extensions: [".py", ".js"]
-        threshold: 0.8
-      - extensions: [".md", ".txt"]
-        threshold: 0.9
-      - extensions: [".json", ".yaml"]
-        threshold: 0.95
   similarity_metric:
-    default: sequence_matcher
-    rules:
-      - extensions: [".py", ".js"]
-        metric: levenshtein
+    default: levenshtein
   use_fuzzy:
     default: true
-    rules:
-      - extensions: [".json", ".yaml"]
-        use_fuzzy: false
 ```
+
+- `validation.non_ascii`: Controls non-ASCII handling (default and per-extension rules).
+- `allow_file_deletion`: Enables/disables file deletions.
+- `matching`: Configures `ApplydirMatcher` (whitespace handling, similarity threshold/metric, fuzzy matching).
 
 ## Class Structure
 1. **ApplydirError (Pydantic)**:
    - **Purpose**: JSON-serializable error, warning, or success confirmation.
    - **Attributes**:
-     - `change: Optional[ApplydirFileChange]`: Associated change, if applicable.
-     - `error_type: ErrorType`: Enum (e.g., `json_structure`, `file_path`, `no_match`, `multiple_matches`, `file_not_found`, `file_already_exists`, `file_system`, `permission_denied`, `file_changes_successful`, `invalid_change`).
+     - `change: Optional[Any]`: Associated change, if applicable (null for structural errors).
+     - `error_type: ErrorType`: Enum (`json_structure`, `invalid_change`, `file_not_found`, `file_already_exists`, `no_match`, `multiple_matches`, `file_system`, `file_changes_successful`, `non_ascii_chars`).
      - `severity: ErrorSeverity`: Enum (`error`, `warning`, `info`).
      - `message: str`: Descriptive message.
-     - `details: Optional[Dict]`: Additional context (e.g., `match_count` for `multiple_matches`, `action` and `change_count` for `file_changes_successful`).
-   - **Validation**: Valid enums, non-empty `message`, `details` defaults to `{}`.
-   - **Usage**: Errors (`error`, `warning`) for validation failures, success confirmations (`info`) for successful file changes.
+     - `details: Dict`: Context (e.g., `file`, `match_count`, `actions`, `change_count`).
+   - **Validation**: Ensures valid enums, non-empty `message`, `details` defaults to `{}`.
+   - **Usage**: Errors (`error`, `warning`) for validation/application failures, `info` for successful file changes.
 
 2. **ApplydirChanges (Pydantic)**:
-   - **Purpose**: Container class to parse and validate JSON array structure, create `ApplydirFileChange` objects.
+   - **Purpose**: Parses and validates JSON `file_entries`, creates `ApplydirFileChange` objects.
    - **Attributes**:
-     - `file_entries: List[FileEntry]`, where `FileEntry` is:
-       - `file: str`: Relative file path.
-       - `action: Optional[str] = "replace_lines"`: `"delete_file"`, `"replace_lines"`, or `"create_file"`.
-       - `changes: Optional[List[Dict]]`: Changes for `"replace_lines"` or `"create_file"`.
+     - `file_entries: List[Dict]`: Each with `file: str`, `action: str`, `changes: Optional[List[Dict]]`.
    - **Validation**:
-     - Array of file entries, valid `file` paths (resolvable and contained within `base_dir`), `action` in `{delete_file, replace_lines, create_file}` or absent.
-     - `"delete_file"`: `changes` ignored.
-     - `"replace_lines"`: Non-empty `changes.original_lines` and `changes.changed_lines`.
-     - `"create_file"`: Empty `changes.original_lines`, non-empty `changes.changed_lines`.
-     - Warn on extra fields.
-   - **Error Handling**: Returns `List[ApplydirError]` for structural validation failures.
+     - Non-empty `file_entries` array.
+     - Valid `file` paths (resolvable within `base_dir`).
+     - Valid `action` (`replace_lines`, `create_file`, `delete_file`).
+     - Creates `ApplydirFileChange` objects via `from_file_entry`.
+   - **Methods**:
+     - `validate_changes(base_dir: str, config: Dict) -> List[ApplydirError]`: Validates paths and non-ASCII characters.
+   - **Error Handling**: Returns `List[ApplydirError]` for structural issues (e.g., missing `file_entries`).
 
 3. **ApplydirFileChange (Pydantic)**:
-   - **Purpose**: Container for a single change for `"replace_lines"`, `"create_file"`, or `"delete_file"`, with validation but no file system operations.
+   - **Purpose**: Represents a single change, validates action-specific rules.
    - **Attributes**:
-     - `file_path: Path`: Resolved file path within project directory.
-     - `original_lines: List[str]`: Lines to replace or empty for `"create_file"`.
-     - `changed_lines: List[str]`: New lines or full content.
+     - `file_path: Path`: Resolved path.
      - `action: ActionType`: Enum (`replace_lines`, `create_file`, `delete_file`).
+     - `original_lines: List[str]`: Lines to match (empty for `create_file`).
+     - `changed_lines: List[str]`: New content (empty for `delete_file`).
+   - **Methods**:
+     - `from_file_entry(file_path: Path, action: str, change_dict: Optional[Dict]) -> ApplydirFileChange`: Creates instance from JSON.
+     - `validate_change(config: Dict) -> List[ApplydirError]`: Validates paths, non-ASCII, and action rules.
    - **Validation**:
      - Non-empty `file_path`.
-     - Non-ASCII per `config.yaml`.
-     - `"replace_lines"`: Non-empty `original_lines` and `changed_lines`.
-     - `"create_file"`: Empty `original_lines`, non-empty `changed_lines`.
-     - `"delete_file"`: Empty `original_lines` and `changed_lines`.
-   - **Error Handling**: Returns `List[ApplydirError]` with `error` or `warning` severity.
+     - Non-ASCII per `config.validation.non_ascii`.
+     - `replace_lines`: Non-empty `original_lines` and `changed_lines`.
+     - `create_file`: Empty `original_lines`, non-empty `changed_lines`.
+     - `delete_file`: Empty `original_lines` and `changed_lines`.
+   - **Error Handling**: Returns `List[ApplydirError]` (e.g., `invalid_change`, `non_ascii_chars`).
 
 4. **ApplydirMatcher**:
-   - **Purpose**: Match `original_lines` using hybrid approach (exact first, optional fuzzy with `difflib` or Levenshtein).
-   - **Attributes**: `similarity_threshold: float`, `max_search_lines: Optional[int]`, `case_sensitive: bool`, `config: Dict` (for whitespace, similarity, use_fuzzy, similarity_metric).
-   - **Methods**: `match(file_content: List[str], change: ApplydirFileChange) -> Tuple[Optional[Dict], List[ApplydirError]]`
-   - **Error Handling**: Returns `ApplydirError` with `error_type=NO_MATCH` for no matches or `MULTIPLE_MATCHES` for multiple matches, including `match_count` in `details`.
+   - **Purpose**: Matches `original_lines` using exact or fuzzy matching (Levenshtein or sequence matcher).
+   - **Attributes**:
+     - `similarity_threshold: float`: Default 0.95 (from config).
+     - `max_search_lines: Optional[int]`: Limits search scope.
+     - `case_sensitive: bool`: From config or default.
+     - `config: Dynaconf`: For `whitespace`, `similarity_metric`, `use_fuzzy`.
+   - **Methods**:
+     - `match(file_content: List[str], change: ApplydirFileChange) -> Tuple[Optional[Dict], List[ApplydirError]]`: Returns match range or errors (`no_match`, `multiple_matches`).
+     - `normalize_line(line: str, whitespace_handling: str, case_sensitive: bool) -> str`: Normalizes lines for matching.
+   - **Error Handling**: Returns `ApplydirError` for `no_match` or `multiple_matches` with `match_count` in `details`.
 
 5. **ApplydirApplicator**:
-   - **Purpose**: Apply changes using `ApplydirFileChange` and `ApplydirMatcher`, including file system existence checks and operations.
-   - **Attributes**: `base_dir: str`, `changes: ApplydirChanges`, `matcher: ApplydirMatcher`, `logger`, `config_override: Optional[Dict]`.
+   - **Purpose**: Applies changes using `ApplydirFileChange` and `ApplydirMatcher`, performs file system operations.
+   - **Attributes**:
+     - `base_dir: str`: Root directory for paths.
+     - `changes: ApplydirChanges`: Parsed changes.
+     - `matcher: ApplydirMatcher`: For line matching.
+     - `logger: logging.Logger`: For logging.
+     - `config: Dynaconf`: Merged configuration.
    - **Methods**:
-     - `apply_changes() -> List[ApplydirError]`
-     - `apply_single_change(file_path: Path, change: ApplydirFileChange) -> List[ApplydirError]`
-     - `delete_file(file_path: Path, relative_path: str) -> List[ApplydirError]`
-     - `write_changes(file_path: Path, changed_lines: List[str], range: Optional[Dict])`
-   - **Validation**: Performs file system existence checks (e.g., `FILE_NOT_FOUND` for `REPLACE_LINES` or `DELETE_FILE`, `FILE_ALREADY_EXISTS` for `CREATE_FILE`).
-   - **Error Handling**: Returns `List[ApplydirError]` with `error` or `warning` severity for failures, `info` severity with `file_changes_successful` for successful file changes.
-
-6. **vibedir.min_context.calculate_min_context**:
-   - **Purpose**: Compute minimal k for unique k-line sets.
-   - **Inputs**: `file_content: List[str]`
-   - **Output**: `int` (min k) or error.
-   - **Logic**: Check k=1, 2, 3, etc., until all k-line windows are unique.
-   - **Usage**: Called by `vibedir` for `MULTIPLE_MATCHES` errors.
+     - `apply_changes() -> List[ApplydirError]`: Iterates over `file_entries`, applies changes.
+     - `create_file(file_path: Path, change: ApplydirFileChange) -> List[ApplydirError]`: Creates new files.
+     - `replace_lines(file_path: Path, change: ApplydirFileChange) -> List[ApplydirError]`: Replaces lines using matcher.
+     - `delete_file(file_path: Path, change: ApplydirFileChange) -> List[ApplydirError]`: Deletes files if allowed.
+     - `write_changes(file_path: Path, changed_lines: List[str], range: Optional[Dict])`: Writes file content.
+   - **Validation**: Checks file existence (`file_not_found`, `file_already_exists`), permissions via `allow_file_deletion`.
+   - **Error Handling**: Returns `List[ApplydirError]` for failures, `file_changes_successful` for successes.
 
 ## CLI Utility
 ```bash
-applydir changes.json --base-dir /path/to/project --no-allow-file-deletion --non-ascii-action=error --log-level=DEBUG
+applydir changes.json [--base-dir <path>] [--no-allow-file-deletion] [--non-ascii-action {error,warning,ignore}] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
 ```
+- `changes.json`: JSON file with changes.
+- `--base-dir`: Base directory (default: `.`).
+- `--no-allow-file-deletion`: Disables deletions.
+- `--non-ascii-action`: Non-ASCII handling (`error`, `warning`, `ignore`).
+- `--log-level`: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`).
 
 ## Error Types
-- `json_structure`: Invalid JSON or `action`.
-- `file_path`: Invalid path or path outside project directory.
-- `changes_empty`: Empty `changes` for `"replace_lines"` or `"create_file"`.
-- `syntax`: Invalid `changed_lines` syntax.
-- `empty_changed_lines`: Empty `changed_lines`.
-- `no_match`: No matches for `original_lines`.
+- `json_structure`: Invalid JSON (e.g., missing `file_entries`).
+- `invalid_change`: Invalid change format or validation failure.
+- `file_not_found`: File missing for `replace_lines` or `delete_file`.
+- `file_already_exists`: File exists for `create_file`.
+- `no_match`: No matching lines for `replace_lines`.
 - `multiple_matches`: Multiple matches for `original_lines`.
-- `file_not_found`: File does not exist for `"delete_file"` or `"replace_lines"`.
-- `file_already_exists`: File exists for `"create_file"`.
-- `file_system`: Other file operation errors (e.g., disk full).
-- `permission_denied`: Access denied for file operations.
-- `configuration`: Invalid config (e.g., deletion disabled).
-- `linting`: Linting errors (via `vibedir`).
-- `file_changes_successful`: All changes to a file (`create_file`, `replace_lines`, `delete_file`) applied successfully.
-- `orig_lines_empty`: Empty `original_lines` for `"replace_lines"`.
-- `orig_lines_not_empty`: Non-empty `original_lines` for `"create_file"`.
-- `invalid_change`: Invalid change content for the specified action.
+- `file_system`: File operation failure (e.g., write error).
+- `file_changes_successful`: Successful file changes (info severity).
+- `non_ascii_chars`: Non-ASCII characters detected (severity per config).
 
 ## Error Format
 ```json
 [
   {
-    "change": {"file_path": "src/main.py", "original_lines": ["..."], "changed_lines": ["..."], "action": "replace_lines"},
-    "error_type": "multiple_matches",
+    "change": {
+      "file_path": "src/main.py",
+      "action": "replace_lines",
+      "original_lines": ["print('Hello')"],
+      "changed_lines": ["print('Hello World')"]
+    },
+    "error_type": "no_match",
     "severity": "error",
-    "message": "Multiple matches found for original_lines",
-    "details": {"file": "src/main.py", "match_count": 3}
+    "message": "No matching lines found",
+    "details": {"file": "src/main.py"}
   },
   {
-    "change": {"file_path": "src/main.py", "original_lines": ["..."], "changed_lines": ["..."], "action": "replace_lines"},
+    "change": null,
     "error_type": "file_changes_successful",
     "severity": "info",
     "message": "All changes to file applied successfully",
-    "details": {"file": "src/main.py", "action": "replace_lines", "change_count": 2}
+    "details": {"file": "src/main.py", "actions": ["replace_lines"], "change_count": 1}
   }
 ]
 ```
 
 ## Workflow
-See Workflow in `applydir_design_overview.md`.
+1. **Input**: Run `applydir changes.json` with JSON file.
+2. **Parsing**: `ApplydirChanges` parses `file_entries`, validates structure.
+3. **Validation**: `ApplydirChanges.validate_changes` checks paths and non-ASCII, creating `ApplydirFileChange` objects.
+4. **Application**: `ApplydirApplicator.apply_changes` iterates over changes, uses `ApplydirMatcher` to locate lines, and applies `create_file`, `replace_lines`, or `delete_file`.
+5. **Output**: Logs errors/successes via `prepdir`’s `configure_logging`, returns exit code (0 for success, 1 for errors).
 
 ## Dependencies
-- **prepdir**: `load_config`, `configure_logging`.
-- **Pydantic**: JSON parsing/validation.
-- **difflib**: Fuzzy matching.
-- **PyYAML**: Parse `config.yaml`.
-- **dynaconf**: Configuration merging.
+- **prepdir**: Provides `load_config` for configuration and `configure_logging` for logging.
+- **Pydantic**: JSON parsing and validation for `ApplydirError`, `ApplydirChanges`, `ApplydirFileChange`.
+- **dynaconf**: Configuration merging in `ApplydirApplicator`.
+- **difflib**: Fuzzy matching in `ApplydirMatcher` (via `sequence_matcher_similarity`).
 
 ## Next Steps
-- Test all `ErrorType` values, including `file_changes_successful` for successful file changes (`create_file`, `replace_lines`, `delete_file`) and edge cases (multiple matches, short files).
-- Integrate `vibedir.min_context.calculate_min_context` for `multiple_matches` errors.
-- Implement `vibedir`’s diff view for `"delete_file"` and success confirmations using `file_changes_successful`.
-- Add `ValidationError` handling in `main.py`.
+- Integrate with `vibedir` for LLM prompting, Git integration, and linting.
+- Expand test coverage for `ApplydirFileChange`, `ApplydirMatcher`, and edge cases.
+- Add support for additional error types if needed.
+- Refine matching configuration (e.g., per-extension rules).

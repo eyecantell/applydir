@@ -29,6 +29,7 @@ TEST_ASCII_CONFIG = {
     }
 }
 
+
 def test_valid_file_path():
     """Test valid file path."""
     change = ApplydirFileChange(
@@ -453,17 +454,17 @@ def test_multiple_non_ascii_errors():
     assert len(errors) == 4
     assert all(ErrorType.NON_ASCII_CHARS == err.error_type for err in errors)
     assert all(ErrorSeverity.ERROR == err.severity for err in errors)
-    
+
     assert any("Non-ASCII characters found in changed_lines" == err.message for err in errors)
     assert any("Non-ASCII characters found in original_lines" == err.message for err in errors)
     assert any("Non-ASCII characters found in file_path" == err.message for err in errors)
     assert any({"line": "print('Hello 😊')", "line_number": 1} == err.details for err in errors)
     assert any({"line": "print('World 😊')", "line_number": 3} == err.details for err in errors)
-    assert any({'line': 'src/main❤️.py', 'line_number': 1} == err.details for err in errors)
-
+    assert any({"line": "src/main❤️.py", "line_number": 1} == err.details for err in errors)
 
 
 # New tests for non-ASCII validation
+
 
 def test_non_ascii_file_path_error():
     """Test non-ASCII characters in file path generates ERROR."""
