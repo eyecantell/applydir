@@ -23,9 +23,21 @@ classifiers = [
     "Topic :: Text Processing :: Markup",
     "Development Status :: 4 - Beta",
 ]
+
 keywords = [
-    "prepdir"
+    "applydir",
+    "prepdir",
+    "automated code changes",
+    "code modification",
+    "developer tools",
+    "large language models",
+    "llm",
+    "cli",
+    "code automation",
+    "ai-driven development",
+    "fuzzy matching"
 ]
+
 requires-python = ">=3.9"
 dependencies = [
     "typing-extensions>=4.7.1; python_version < '3.11'",
