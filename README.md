@@ -1,5 +1,11 @@
 # applydir
 
+[![CI](https://github.com/eyecantell/applydir/actions/workflows/ci.yml/badge.svg)](https://github.com/eyecantell/applydir/actions/runs/18212548824)
+[![PyPI version](https://badge.fury.io/py/applydir.svg)](https://badge.fury.io/py/applydir)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Downloads](https://pepy.tech/badge/applydir)](https://pepy.tech/project/applydir)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Overview
 `applydir` is a Python command-line tool that automates the application of LLM-generated code changes to a codebase. It processes changes specified in a JSON format, supporting actions like line replacements, file creation, and deletion. Changes are applied directly to the codebase—use Git or other version control tools (e.g., via planned `vibedir` integration) for tracking and reverting. Designed to integrate with `prepdir` (for logging and configuration) and eventually `vibedir` (for LLM communication, Git integration, and linting), `applydir` validates and applies changes with robust error handling, fuzzy matching for reliability, and resolvable file paths.
 
