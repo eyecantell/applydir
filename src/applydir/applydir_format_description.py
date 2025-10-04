@@ -1,14 +1,25 @@
-def applydir_format_description() -> str:
+def applydir_format_description(filename: str = "applydir_changes.json") -> str:
     """Returns a description of the applydir JSON format for use in an LLM prompt.
 
     The description outlines the structure and requirements for the JSON input
-    that `applydir` processes to apply changes to a codebase. This is intended for
-    integration with `vibedir` to guide an LLM in generating compatible changes.
+    that `applydir` processes to apply changes to a codebase. It includes
+    instructions for the LLM to return the JSON content in a file with the
+    specified filename. This is intended for integration with `vibedir` to guide
+    an LLM in generating compatible changes.
+
+    Args:
+        filename (str, optional): The name of the file in which the LLM should
+            return the JSON content. Defaults to "applydir_changes.json".
 
     Returns:
-        str: A detailed description of the applydir JSON format.
+        str: A detailed description of the applydir JSON format with instructions
+            for file output.
     """
-    return """
+    return f"""
+You must generate JSON content conforming to the applydir format described below and return it in a file named '{
+        filename
+    }', containing only the JSON data, separate from any explanatory text or metadata.
+
 The applydir tool processes code changes specified in a JSON format to apply modifications, creations, or deletions to files in a codebase. The JSON must adhere to the following structure and requirements to ensure compatibility with applydir's processing logic:
 
 1. **Top-Level Structure**:
@@ -39,33 +50,33 @@ The applydir tool processes code changes specified in a JSON format to apply mod
 5. **Example JSON**:
 ```json
 {
-  "file_entries": [
+        "file_entries": [
     {
-      "file": "src/main.py",
+            "file": "src/main.py",
       "action": "replace_lines",
       "changes": [
         {
-          "original_lines": ["print('Hello')"],
+                "original_lines": ["print('Hello')"],
           "changed_lines": ["print('Hello World')"]
         },
         {
-          "original_lines": ["def old_func():", "    pass"],
+                "original_lines": ["def old_func():", "    pass"],
           "changed_lines": ["def updated_func():", "    return True"]
         }
       ]
     },
     {
-      "file": "src/new.py",
+            "file": "src/new.py",
       "action": "create_file",
       "changes": [
         {
-          "original_lines": [],
+                "original_lines": [],
           "changed_lines": ["def new_func():", "    pass"]
         }
       ]
     },
     {
-      "file": "src/old.py",
+            "file": "src/old.py",
       "action": "delete_file",
       "changes": []
     }
@@ -77,6 +88,4 @@ The applydir tool processes code changes specified in a JSON format to apply mod
    - Use clear, valid file paths (e.g., `src/main.py` instead of vague or invalid paths like `./` or empty strings).
    - Ensure `original_lines` accurately reflects the content to match for `replace_lines` to avoid `no_match` or `multiple_matches` errors.
    - Avoid non-ASCII characters in critical files (e.g., `.py`, `.js`) unless explicitly allowed in configuration.
-
-This format ensures applydir can parse and apply changes reliably while supporting validation and error handling.
 """
