@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [PyPI](https://pypi.org/project/applydir/)
 - [Dynaconf Documentation](https://dynaconf.com)
 
+## [0.4.0] - 2025-10-04
+
+### Added
+- New `applydir_format_description` function in `applydir_format.py` to generate a prompt for LLMs, guiding them to produce `applydir`-compatible JSON changes for `vibedir` integration.
+  - Includes a `filename` parameter (default: `"applydir_changes.json"`) to specify the output JSON file.
+  - Directly addresses the LLM with instructions to return JSON in the specified file, separate from other output.
+  - Provides a detailed description of the JSON format, including top-level structure, file entry structure, change object structure, constraints, and additional notes.
+  - Features a valid example JSON with multiple `replace_lines` changes, a `create_file` action, and a `delete_file` action.
+  - Includes guidance on multiple changes for `replace_lines` and avoiding overlapping `original_lines` in `replace_lines` changes.
+
+### Changed
+- Streamlined `applydir_format_description` to reduce redundancy in "Constraints and Validation" and "Additional Notes" sections, optimizing token usage for LLM prompts.
+- Corrected example JSON syntax in `applydir_format_description` to use single curly braces, ensuring validity for `applydir` parsing.
+- Updated `README.md` to include a subsection on `applydir_format_description` under "JSON Format," detailing its role in `vibedir` integration.
 ## [0.3.0] - 2025-10-02
 
 ### Added

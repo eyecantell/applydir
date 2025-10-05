@@ -44,6 +44,16 @@ Changes are provided in a JSON object with a `file_entries` array:
 }
 ```
 
+### Prompting to use applydir
+To facilitate integration with, the `applydir_format_description` function provides a detailed prompt for LLMs to generate JSON changes compatible with `applydir`. The function includes:
+
+- **Structure and Requirements**: Describes the JSON format, including `file_entries`, supported actions (`replace_lines`, `create_file`, `delete_file`), and validation rules (e.g., non-empty `original_lines` for `replace_lines`, resolvable file paths).
+- **File Output**: Instructs the LLM to return the JSON in a file (default: `applydir_changes.json`), separate from explanatory text, aligning with LLM API practices.
+- **Example JSON**: Includes a sample with multiple `replace_lines` changes, a `create_file` action, and a `delete_file` action.
+- **Customization**: Accepts a `filename` parameter to specify the output file name.
+
+This function ensures LLMs generate valid JSON for `applydir`, supporting LLM communication. See the [example JSON](#json-format) for reference.
+
 ### Example Cases
 - **Modification (replace_lines)**: Replace a block in `src/main.py`:
   ```json
