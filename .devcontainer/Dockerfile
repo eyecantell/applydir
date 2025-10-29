@@ -29,8 +29,7 @@ WORKDIR /mounted/dev/applydir
 
 # Install Python packages
 RUN python -m ensurepip --default-pip && \
-    pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir 
+    pip install --no-cache-dir --upgrade pip
 
 # Install development tools
 RUN pip install --no-cache-dir \
