@@ -1,4 +1,4 @@
-def applydir_format_description(filename: str = "applydir_changes.json") -> str:
+def applydir_format_description(filename: str = "applydir_changes.json", include_commit_message: bool = False,) -> str:
     """Returns a description of the applydir JSON format for use in an LLM prompt.
 
     The description outlines the structure and requirements for the JSON input
@@ -15,15 +15,20 @@ def applydir_format_description(filename: str = "applydir_changes.json") -> str:
         str: A detailed description of the applydir JSON format with instructions
             for file output.
     """
-    return "".join([
-        f"When recommending code changes, you must generate JSON content conforming to the applydir format described below and return it in a file named '{filename}', containing only the JSON data, separate from any explanatory text or metadata.",
+    description = f"When recommending code changes, you must generate JSON content conforming to the applydir format described below and return it in a file named '{filename}', containing only the JSON data, separate from any explanatory text or metadata."
 
-"""
+    description += "\n".join([
+       "The applydir tool processes code changes specified in a JSON format to apply modifications, creations, or deletions to files in a codebase. The JSON must adhere to the following structure and requirements to ensure compatibility with applydir's processing logic:",
+       "1. **Top-Level Structure**:"
+       ])
 
-The applydir tool processes code changes specified in a JSON format to apply modifications, creations, or deletions to files in a codebase. The JSON must adhere to the following structure and requirements to ensure compatibility with applydir's processing logic:
+    if include_commit_message:
+      description += "\n   - The JSON object must contain two top-level keys: `file_entries`, which is a non-empty array of objects, and 'message', which is a git commit message describing the changes in file_entries as a whole."
+    else:
+      description += "\n   - The JSON object must contain a single key, `file_entries`, which is a non-empty array of objects."
 
-1. **Top-Level Structure**:
-   - The JSON object must contain a single key, `file_entries`, which is a non-empty array of objects.
+    description +="""
+
    - Each object in `file_entries` represents changes to a single file.
 
 2. **File Entry Structure**:
@@ -49,6 +54,10 @@ The applydir tool processes code changes specified in a JSON format to apply mod
 5. **Example JSON**:
 ```json
 {
+"""
+    if include_commit_message:
+       description += """  "message": "Added 'World' to print. Defined updated_func.", """
+    description += """
   "file_entries": [
     {
       "file": "src/main.py",
@@ -88,4 +97,12 @@ The applydir tool processes code changes specified in a JSON format to apply mod
    - Ensure `original_lines` accurately reflects the file content to match for `replace_lines` to avoid `no_match` or `multiple_matches` errors.
    - For `replace_lines`, you may include multiple change objects in the `changes` array to apply multiple replacements in a single file.
    - For `replace_lines` with multiple changes in a single file, ensure original_lines do not target overlapping sections of the file. If overlaps occur, combine the changes into a single change object to avoid conflicts during application.
-"""])
+"""
+    if include_commit_message:
+       description += """
+7. **Commit Message**:
+   - Include a top-level field `message` with a concise Git commit message describing the changes provided.
+   - It may contain line breaks (`\\n`) for a title + body.
+   - Example: `{"message": "feat: add JWT auth\\n\\n- implement token generation\\n- add tests"}
+"""
+    return description

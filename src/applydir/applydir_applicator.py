@@ -3,6 +3,7 @@ from .applydir_changes import ApplydirChanges
 from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from .applydir_file_change import ApplydirFileChange, ActionType
 from .applydir_matcher import ApplydirMatcher
+from .applydir_result import ApplydirResult
 from dynaconf import Dynaconf
 from pathlib import Path
 from prepdir import load_config
@@ -40,11 +41,13 @@ class ApplydirApplicator:
             self.config.update(config_override, merge=True)
         self.matcher = matcher or ApplydirMatcher(config=self.config)
 
-    def apply_changes(self) -> List[ApplydirError]:
+    def apply_changes(self) -> ApplydirResult:
         """Applies all changes directly to files in base_dir, reporting one success per file."""
         errors = []
+
         if not self.changes:
             return errors
+        
         for file_entry in self.changes.file_entries:
             file_path = self.base_dir / file_entry.file
             change_count = 0
@@ -130,7 +133,11 @@ class ApplydirApplicator:
                         details={"file": str(file_path), "actions": list(actions), "change_count": change_count},
                     )
                 )
-        return errors
+        return ApplydirResult(
+            errors=errors,
+            commit_message=self.changes.message,   # None if not supplied
+            success=not any(e.severity == ErrorSeverity.ERROR for e in errors),
+        )
 
     def create_file(self, file_path: Path, change: ApplydirFileChange) -> List[ApplydirError]:
         """Creates a new file with the specified changes."""

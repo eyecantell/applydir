@@ -62,7 +62,8 @@ def main():
                 )
             return 1
 
-        errors = applicator.apply_changes()
+        result = applicator.apply_changes()
+        errors = result.errors
         has_errors = False
         for error in errors:
             log_level = (
@@ -79,6 +80,8 @@ def main():
             return 1
 
         logger.info("Changes applied successfully")
+        if result.commit_message:
+            logger.info(f"Commit message available: {result.commit_message!r}")
         return 0
     except Exception as e:
         logger.error(f"Application failed: {str(e)}")

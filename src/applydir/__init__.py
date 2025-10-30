@@ -5,6 +5,7 @@ from .applydir_error import ApplydirError, ErrorType, ErrorSeverity
 from .applydir_file_change import ApplydirFileChange, get_non_ascii_severity
 from .applydir_format_description import applydir_format_description
 from .applydir_matcher import ApplydirMatcher
+from .applydir_result import ApplydirResult
 from .main import main
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "ApplydirError",
     "ApplydirFileChange",
     "ApplydirMatcher",
+    "ApplydirResult",
     "ErrorSeverity",
     "ErrorType",
     "get_non_ascii_severity",

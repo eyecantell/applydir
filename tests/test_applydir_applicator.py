@@ -50,7 +50,8 @@ def test_replace_lines_exact(tmp_path, applicator):
         ]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
     assert errors[0].severity == ErrorSeverity.INFO
@@ -73,7 +74,8 @@ def test_replace_lines_exact_from_json(tmp_path, applicator):
     ]
     changes = ApplydirChanges(file_entries=changes_json)
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
     assert errors[0].severity == ErrorSeverity.INFO
@@ -113,7 +115,8 @@ def test_replace_lines_fuzzy(tmp_path, applicator):
     applicator.matcher.config = applicator.config.as_dict()
     applicator.changes = changes
 
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     print("errors are: \n" + "\n".join([str(err) for err in errors]))
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
@@ -137,7 +140,8 @@ def test_create_file(tmp_path, applicator):
         ]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
     assert errors[0].severity == ErrorSeverity.INFO
@@ -153,7 +157,8 @@ def test_delete_file(tmp_path, applicator):
     file_path.write_text("print('Old file')\n")
     changes = ApplydirChanges(file_entries=[FileEntry(file="old.py", action=ActionType.DELETE_FILE, changes=[])])
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
     assert errors[0].severity == ErrorSeverity.INFO
@@ -177,7 +182,8 @@ def test_create_file_exists(tmp_path, applicator):
         ]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_ALREADY_EXISTS
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -195,7 +201,8 @@ def test_delete_file_not_found(tmp_path, applicator):
         file_entries=[FileEntry(file="non_existent.py", action=ActionType.DELETE_FILE, changes=[])]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_NOT_FOUND
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -228,7 +235,8 @@ def test_replace_lines_non_ascii_error(tmp_path, applicator):
     )"""
     errors = changes.validate_changes(tmp_path, config=applicator.config.as_dict())
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     print("errors are: \n" + "\n".join([str(err) for err in errors]))
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.NON_ASCII_CHARS
@@ -254,7 +262,8 @@ def test_replace_lines_multiple_matches_no_fuzzy(tmp_path, applicator):
         }
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.MULTIPLE_MATCHES
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -289,7 +298,8 @@ def test_apply_multiple_files(tmp_path, applicator):
         ]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 3
     assert all(e.error_type == ErrorType.FILE_CHANGES_SUCCESSFUL for e in errors)
     assert all(e.severity == ErrorSeverity.INFO for e in errors)
@@ -320,7 +330,8 @@ def test_delete_file_with_changes_ignored(tmp_path, applicator):
         ]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 2
     assert errors[0].error_type == ErrorType.INVALID_CHANGE
     assert errors[0].severity == ErrorSeverity.WARNING
@@ -342,7 +353,8 @@ def test_delete_disabled(tmp_path, applicator):
     changes = ApplydirChanges(file_entries=[FileEntry(file="old.py", action=ActionType.DELETE_FILE, changes=[])])
     applicator.config.update({"allow_file_deletion": False})
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.PERMISSION_DENIED
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -363,7 +375,8 @@ def test_file_system_error(tmp_path, applicator):
         file_entries=[FileEntry(file="protected.py", action=ActionType.REPLACE_LINES, changes=[change_dict])]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_SYSTEM
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -391,7 +404,8 @@ def test_multiple_changes_single_file(tmp_path, applicator):
         ]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.FILE_CHANGES_SUCCESSFUL
     assert errors[0].severity == ErrorSeverity.INFO
@@ -422,7 +436,8 @@ def test_mixed_success_failure_single_file(tmp_path, applicator):
         }
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     print("errors are:\n" + "\n".join([str(err) for err in errors]))
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.MULTIPLE_MATCHES
@@ -446,7 +461,8 @@ def test_empty_changes_create_file(tmp_path, applicator):
         ]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.CHANGED_LINES_EMPTY
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -469,7 +485,8 @@ def test_empty_changes_replace_lines(tmp_path, applicator):
         ]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     assert len(errors) == 2
     assert errors[0].error_type == ErrorType.ORIG_LINES_EMPTY
     assert errors[0].severity == ErrorSeverity.ERROR
@@ -498,7 +515,8 @@ def test_malformed_change_dict(tmp_path, applicator):
         ]
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     print("errors are:\n" + "\n".join([str(err) for err in errors]))
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.INVALID_CHANGE
@@ -574,7 +592,8 @@ def test_replace_lines_fuzzy_sequence_matcher(tmp_path, applicator):
         }
     )
     applicator.changes = changes
-    errors = applicator.apply_changes()
+    result = applicator.apply_changes()
+    errors = result.errors
     print("errors are: \n" + "\n".join([str(err) for err in errors]))
     assert len(errors) == 1
     assert errors[0].error_type == ErrorType.NO_MATCH  # SequenceMatcher fails due to ratio ~0.889 < 0.95

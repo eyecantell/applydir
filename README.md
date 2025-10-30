@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
-`applydir` is a Python command-line tool that automates the application of LLM-generated code changes to a codebase. It processes changes specified in a JSON format, supporting actions like line replacements, file creation, and deletion. Changes are applied directly to the codebase—use Git or other version control tools (e.g., via planned `vibedir` integration) for tracking and reverting. Designed to integrate with `prepdir` (for logging and configuration) and eventually `vibedir` (for LLM communication, Git integration, and linting), `applydir` validates and applies changes with robust error handling, fuzzy matching for reliability, and resolvable file paths.
+`applydir` is a Python command-line tool that automates the application of LLM-generated code changes to a codebase. It processes changes specified in a JSON format, supporting actions like line replacements, file creation, and deletion. Changes are applied directly to the codebase - use Git or other version control tools (e.g., via planned `vibedir` integration) for tracking and reverting. Designed to integrate with `prepdir` (for logging and configuration) and eventually `vibedir` (for LLM communication, Git integration, and linting), `applydir` validates and applies changes with robust error handling, fuzzy matching for reliability, and resolvable file paths.
 
 ## Features
 - **Supported Actions**: 
@@ -25,10 +25,11 @@
 - **Modular Design**: Separates JSON parsing (`ApplydirChanges`), change validation (`ApplydirFileChange`), matching (`ApplydirMatcher`), and application (`ApplydirApplicator`).
 
 ## JSON Format
-Changes are provided in a JSON object with a `file_entries` array:
+Changes are provided in a JSON object with a `file_entries` array and optional `message` describing the changes provided:
 
 ```json
 {
+  "message": "Optional single-line Git commit message (configurable)",
   "file_entries": [
     {
       "file": "<relative_or_absolute_file_path>",
@@ -43,6 +44,10 @@ Changes are provided in a JSON object with a `file_entries` array:
   ]
 }
 ```
+### Top-level fields
+- **`message`** (optional string) – Git commit message.  
+  May contain `\\n` for a multi-line message.  
+  Only emitted when the LLM is instructed to include it.
 
 ### Prompting to use applydir
 To facilitate integration with, the `applydir_format_description` function provides a detailed prompt for LLMs to generate JSON changes compatible with `applydir`. The function includes:

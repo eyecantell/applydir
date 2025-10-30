@@ -42,12 +42,20 @@ class ApplydirChanges(BaseModel):
     """Parses and validates JSON input for applydir changes as a container class."""
 
     file_entries: List[FileEntry]
+    message: Optional[str] = None
     model_config = ConfigDict(extra="allow")  # Allow extra fields at top level
 
     def __init__(self, **data):
         logger.debug(f"Raw input JSON for file_entries: {data.get('file_entries', [])}")
         super().__init__(**data)
 
+    @field_validator("message", mode="after")
+    def _check_message(cls, values):
+        msg = values.message
+        if msg is not None and not msg.strip():
+            raise ValueError("Commit message must be a non-empty string")
+        return values
+    
     @field_validator("file_entries")
     @classmethod
     def validate_file_entries(cls, v: List[FileEntry], info: ValidationInfo) -> List[FileEntry]:
