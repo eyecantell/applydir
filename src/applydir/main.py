@@ -44,10 +44,13 @@ def main():
         return 1
 
     try:
-        if "file_entries" not in changes_json:
-            logger.error("JSON must contain a non-empty array of file entries")
+        
+        try:
+            changes = ApplydirChanges.model_validate(changes_json)
+        except Exception as e:
+            logger.error(f"Invalid JSON structure: {e}")
             return 1
-        changes = ApplydirChanges(file_entries=changes_json["file_entries"])
+        
         matcher = ApplydirMatcher(similarity_threshold=0.95)
         applicator = ApplydirApplicator(
             base_dir=args.base_dir, changes=changes, matcher=matcher, logger=logger, config_override=config_override
@@ -74,7 +77,7 @@ def main():
                 else logging.ERROR
             )
             logger.log(log_level, f"{error.message}: {error.details}")
-            if error.severity in [ErrorSeverity.ERROR, ErrorSeverity.WARNING]:
+            if error.severity == ErrorSeverity.ERROR:
                 has_errors = True
         if has_errors:
             return 1

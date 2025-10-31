@@ -49,13 +49,14 @@ class ApplydirChanges(BaseModel):
         logger.debug(f"Raw input JSON for file_entries: {data.get('file_entries', [])}")
         super().__init__(**data)
 
-    @field_validator("message", mode="after")
-    def _check_message(cls, values):
-        msg = values.message
-        if msg is not None and not msg.strip():
+    @field_validator("message")
+    @classmethod
+    def _check_message(cls, v: Optional[str]) -> Optional[str]:
+        """Ensures commit message is non-empty if provided."""
+        if v is not None and not v.strip():
             raise ValueError("Commit message must be a non-empty string")
-        return values
-    
+        return v
+
     @field_validator("file_entries")
     @classmethod
     def validate_file_entries(cls, v: List[FileEntry], info: ValidationInfo) -> List[FileEntry]:

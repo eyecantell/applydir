@@ -13,6 +13,7 @@ def test_applydir_format_description_output_with_message():
     assert "**Example JSON**:" in prompt
     assert "**Additional Notes**:" in prompt
     assert "For `replace_lines` with multiple changes" in prompt
+    assert "7. **Commit Message**:" in prompt
     
     # Extract and validate example JSON
     json_start = prompt.index('```json\n') + len('```json\n')
@@ -42,6 +43,7 @@ def test_applydir_format_description_output_without_message():
     assert "**Example JSON**:" in prompt
     assert "**Additional Notes**:" in prompt
     assert "For `replace_lines` with multiple changes" in prompt
+    assert "7. **Commit Message**:" not in prompt
     
     # Extract and validate example JSON
     json_start = prompt.index('```json\n') + len('```json\n')
