@@ -29,7 +29,7 @@ Changes are provided in a JSON object with a `file_entries` array and optional `
 
 ```json
 {
-  "message": "Optional single-line Git commit message (configurable)",
+  "message": "Optional Git commit message (may include \n for multi-line)",
   "file_entries": [
     {
       "file": "<relative_or_absolute_file_path>",

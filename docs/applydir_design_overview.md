@@ -17,6 +17,7 @@ The input is a JSON object with a `file_entries` array:
 
 ```json
 {
+  "message": "Optional Git commit message (may include \n for multi-line)",
   "file_entries": [
     {
       "file": "<relative_file_path>",

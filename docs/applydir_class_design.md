@@ -16,6 +16,7 @@ The `applydir` project automates applying LLM-generated code changes to a codeba
 ## JSON Format
 ```json
 {
+  "message": "Optional Git commit message (may include \n for multi-line)",
   "file_entries": [
     {
       "file": "<relative_or_absolute_file_path>",
