@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [PyPI](https://pypi.org/project/applydir/)
 - [Dynaconf Documentation](https://dynaconf.com)
 
+## [0.5.0] - 2025-10-30
+### Added
+
+- Optional top-level message field in JSON input for Git commit messages, with validation (non-empty string if provided).
+- New ApplydirResult dataclass returned by ApplydirApplicator.apply_changes(), including errors, commit_message, and success flag.
+- Configurable include_commit_message parameter in applydir_format_description to control LLM prompting for commit messages.
+- Logging of available commit message in CLI output on successful application.
+
+### Changed
+
+- Updated ApplydirChanges model to parse and validate the new message field.
+- Modified ApplydirApplicator and main.py to handle the new ApplydirResult return type.
+- Adjusted Pydantic validator signatures in ApplydirChanges for compatibility and proper error handling.
+- Updated tests in tests/test_main.py to cover commit message handling, multi-line support, validation errors, and mixed severity results.
+
+### Fixed
+
+- Consistent error handling and logging for invalid JSON structures, including empty file_entries and invalid commit messages.
+
 ## [0.4.0] - 2025-10-04
 
 ### Added

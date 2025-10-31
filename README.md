@@ -1,6 +1,6 @@
 # applydir
 
-[![CI](https://github.com/eyecantell/applydir/actions/workflows/ci.yml/badge.svg)](https://github.com/eyecantell/applydir/actions/runs/18212548824)
+[![CI](https://github.com/eyecantell/applydir/actions/workflows/ci.yml/badge.svg)](https://github.com/eyecantell/applydir/actions/runs/18961396691)
 [![PyPI version](https://badge.fury.io/py/applydir.svg)](https://badge.fury.io/py/applydir)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Downloads](https://pepy.tech/badge/applydir)](https://pepy.tech/project/applydir)
@@ -23,6 +23,7 @@
 - **CLI Utility**: Run `applydir <input_file>` with options to customize behavior.
 - **Direct Application**: Changes are applied directly to files for simplicity; track/revert via Git in workflows like `vibedir`.
 - **Modular Design**: Separates JSON parsing (`ApplydirChanges`), change validation (`ApplydirFileChange`), matching (`ApplydirMatcher`), and application (`ApplydirApplicator`).
+- **Commit Message Support**: Optional top-level message field in JSON for Git commit messages (multi-line via \n).
 
 ## JSON Format
 Changes are provided in a JSON object with a `file_entries` array and optional `message` describing the changes provided:
@@ -262,12 +263,16 @@ Errors and warnings are returned as a list of `ApplydirError` objects and logged
    - Applies changes.
    - Methods: `apply_changes() -> List[ApplydirError]`, supports create/replace/delete.
 
+6. **ApplydirResult**:
+   - Returned by apply_changes().
+   - Attributes: errors: List[ApplydirError], commit_message: Optional[str], success: bool.
+
 ## Workflow
 1. **Input**: Run `applydir <input_file>` with JSON changes.
 2. **Parsing**: Load JSON, check `file_entries`, create `ApplydirChanges`.
 3. **Validation**: Validate structure, paths, non-ASCII via `validate_changes`.
 4. **Application**: Use `ApplydirApplicator` to match lines (`ApplydirMatcher`) and apply changes directly.
-5. **Output**: Log errors/successes, return exit code (0 success, 1 failure).
+5. **Output**: Log errors/successes, return exit code (0 success, 1 failure). Commit message available in ApplydirResult.
 
 ## Planned Features
 - **vibedir Integration**: LLM prompting, Git commits/rollbacks, linting.
@@ -292,6 +297,7 @@ Errors and warnings are returned as a list of `ApplydirError` objects and logged
 - Existing files for create: `file_already_exists` error.
 - Non-ASCII: Handled per config/CLI.
 - Multiple/no matches: `multiple_matches` or `no_match` errors.
+- Empty/whitespace-only message: Validation error.
 
 ## Testing
 - Tests in `tests/test_main.py` cover CLI execution, validation, errors, and options.
