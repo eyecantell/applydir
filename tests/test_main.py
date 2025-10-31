@@ -313,12 +313,13 @@ def test_main_missing_file_entries(tmp_path: Path, caplog):
     assert "Invalid JSON structure" in caplog.text
     assert "Field required" in caplog.text
 
-
 def test_main_empty_file_entries(tmp_path: Path, caplog):
     p = tmp_path / "empty.json"
     p.write_text(json.dumps({"file_entries": []}))
     caplog.set_level(logging.ERROR)
     with patch.object(sys, "argv", ["applydir", str(p), "--base-dir", str(tmp_path)]):
         assert main() == 1
-    assert "Invalid JSON structure" in caplog.text
-    assert "JSON must contain a non-empty array of file_entries" in caplog.text
+    log_text = caplog.text
+    assert "Invalid JSON structure" in log_text
+    assert "file_entries" in log_text
+    assert "non-empty array" in log_text

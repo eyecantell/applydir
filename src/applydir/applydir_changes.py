@@ -54,38 +54,30 @@ class ApplydirChanges(BaseModel):
     def _check_message(cls, v: Optional[str]) -> Optional[str]:
         """Ensures commit message is non-empty if provided."""
         if v is not None and not v.strip():
-            raise ValueError("Commit message must be a non-empty string")
+            raise PydanticCustomError(
+                "commit_message_empty",
+                "Commit message must be a non-empty string",
+            )
         return v
 
     @field_validator("file_entries")
     @classmethod
     def validate_file_entries(cls, v: List[FileEntry], info: ValidationInfo) -> List[FileEntry]:
         """Validates basic JSON structure and file entries (types only; deep validation in validate_changes)."""
-        errors = []
         if not v:
-            errors.append(
-                ApplydirError(
-                    change=None,
-                    error_type=ErrorType.JSON_STRUCTURE,
-                    severity=ErrorSeverity.ERROR,
-                    message="JSON must contain a non-empty array of file entries",
-                    details={},
-                )
-            )
-            raise ValueError(errors)
-        for i, file_entry in enumerate(v):
-            if not file_entry.file:
-                errors.append(
-                    ApplydirError(
+            raise PydanticCustomError(
+                "empty_file_entries",
+                "JSON must contain a non-empty array of file entries",
+                dict(
+                    error=ApplydirError(
                         change=None,
-                        error_type=ErrorType.FILE_PATH,
+                        error_type=ErrorType.JSON_STRUCTURE,
                         severity=ErrorSeverity.ERROR,
-                        message="File path missing or empty",
+                        message="JSON must contain a non-empty array of file entries",
                         details={},
                     )
-                )
-        if errors:
-            raise ValueError(errors)
+                ),
+            )
         return v
 
     def validate_changes(self, base_dir: str, config: Optional[Dict] = None) -> List[ApplydirError]:
@@ -94,7 +86,7 @@ class ApplydirChanges(BaseModel):
         if config is None:
             config = {}
 
-        logger.debug(f"Config used for validate_changes:" + json.dumps(config, indent=4))
+        logger.debug(f"Config used for validate_changes: {json.dumps(config, indent=4)}")
         base_path = Path(base_dir).resolve()
 
         for file_entry in self.file_entries:
